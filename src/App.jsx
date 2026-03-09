@@ -1,427 +1,1007 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Upload, 
-  Sparkles, 
-  Download, 
-  RefreshCcw, 
-  Ghost, 
-  Waves, 
-  Droplets,
-  Camera,
-  Heart,
-  Anchor,
-  Maximize2
-} from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore, collection, addDoc, getDocs, query,
+  orderBy, limit, onSnapshot, updateDoc, doc, serverTimestamp, where
+} from "firebase/firestore";
 
-/**
- * WHITIFY | THE BAPTISM OF THE WHITE WHALE
- * A fluid, interactive aquatic simulation.
- * Architecture: Optimized to prevent re-mount on mouse tracking.
- */
+// ─── FIREBASE ────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyB_gNokFnucM2nNAhhkRRnPsPNBAShYlMs",
+  authDomain: "it-token.firebaseapp.com",
+  projectId: "it-token",
+  storageBucket: "it-token.firebasestorage.app",
+  messagingSenderId: "804328953904",
+  appId: "1:804328953904:web:e760545b579bf2527075f5"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
-const apiKey = (() => {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
-  } catch (e) {}
-  try {
-    if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
-  } catch (e) {}
-  try {
-    if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
-  } catch (e) {}
-  return typeof __apiKey !== 'undefined' ? __apiKey : "";
-})();
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const CONTRACT_ADDRESS = "PASTE_CA_HERE"; // <-- replace with real CA
+const BURN_AMOUNT_SOL = 0.01;
+const REACTIONS = [
+  { key: "candle", symbol: "🕯️", label: "I've felt this" },
+  { key: "heavy",  symbol: "🪨", label: "heavy" },
+  { key: "eye",    symbol: "👁️", label: "I see you" },
+  { key: "fire",   symbol: "🔥", label: "burn it" },
+  { key: "grave",  symbol: "💀", label: "take it to the grave" },
+];
+const CATEGORIES = [
+  { key: "crypto",  symbol: "💸", label: "Money & Crypto" },
+  { key: "love",    symbol: "❤️",  label: "Love & Betrayal" },
+  { key: "family",  symbol: "👨‍👩‍👧", label: "Family" },
+  { key: "self",    symbol: "🪞", label: "Things I did to myself" },
+  { key: "online",  symbol: "🌐", label: "Things I did online" },
+  { key: "unsaid",  symbol: "☠️", label: "Things I'd never say out loud" },
+  { key: "good",    symbol: "✨", label: "Good things I'm ashamed to feel good about" },
+];
+const SOCIAL = {
+  x:          "https://x.com/confessioncoin",
+  xCommunity: "https://x.com/i/communities/confessioncoin",
+  github:     "https://github.com/confessioncoin/confessioncoin",
+};
 
-const WHITIFY_PROMPT = "Edit this image into a cinematic underwater masterpiece. Isolate all visible skin and convert it to a solid, pure white (#FFFFFF), giving it the texture of polished white marble or ethereal sea-foam while retaining realistic shadows. Ignore and do not alter any objects the subject might be holding. Immerse the entire scene in a deep, atmospheric aquatic environment with dramatic high-contrast lighting, ethereal sunbeams filtering through dark water, and a high-fashion 'submerged' aesthetic. Ensure hair, clothing, and background details are preserved with cinematic clarity.";
+// ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
-// --- Sub-Components (Defined outside to prevent re-mounting) ---
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-const HomeView = ({ previewUrl, resultImage, status, startWhitifying, triggerUpload }) => (
-  <div className="relative z-10 flex flex-col items-center animate-in fade-in duration-1000">
-    <div className="text-center mb-16 space-y-6 pt-10">
-      <h1 className="text-8xl md:text-[12rem] font-black tracking-tighter uppercase leading-none text-white drop-shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-transform hover:scale-[1.02] duration-700 select-none">
-        WHITI<br/>FY.
-      </h1>
-      <p className="text-xl md:text-3xl text-blue-100/40 font-light max-w-2xl mx-auto italic tracking-wide select-none">
-        "The Great White Whale birthed us into the foam. Now, you return to the light."
-      </p>
-    </div>
-
-    <div className="w-full max-w-5xl group">
-      <div className="relative bg-white/5 backdrop-blur-3xl rounded-[4rem] p-10 shadow-[0_0_100px_rgba(255,255,255,0.05)] border border-white/10 overflow-hidden transition-all duration-1000 group-hover:bg-white/[0.08]">
-        <div className="absolute inset-0 bg-[url('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMDRhOWFmNDM1Y2FkMzE0YjUzYzlkYTVmOWFhNWYxZjEyNTRiZmI0YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKVUn7iM8FMEU24/giphy.gif')] opacity-5 mix-blend-screen pointer-events-none" />
-
-        <div className="flex flex-col lg:flex-row gap-12 relative z-10">
-          <div 
-            onClick={triggerUpload}
-            className="flex-[1.5] aspect-[4/5] lg:aspect-auto relative rounded-[3rem] bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden cursor-pointer group/pool"
-          >
-            {!previewUrl ? (
-              <div className="flex flex-col items-center gap-6 group-hover/pool:scale-110 transition-all duration-500">
-                <div className="w-32 h-32 bg-white/5 rounded-full flex items-center justify-center relative">
-                  <div className="absolute inset-0 bg-white/10 rounded-full animate-ping" />
-                  <Camera className="text-white/60 relative z-10" size={40} />
-                </div>
-                <div className="text-center">
-                  <p className="font-black text-white uppercase tracking-[0.5em] text-xs">Drop into the Deep</p>
-                  <p className="text-[10px] text-white/30 mt-2 uppercase">Biological Signal Required</p>
-                </div>
-              </div>
-            ) : (
-              <div className="relative w-full h-full">
-                <img 
-                  src={resultImage || previewUrl} 
-                  className={`w-full h-full object-cover transition-all duration-[2s] ease-out ${status === 'WHITENING' ? 'brightness-[3] blur-3xl scale-125' : 'brightness-100 blur-0 scale-100'} ${status === 'DONE' ? 'animate-[breach_1.5s_ease-out]' : ''}`}
-                  alt="Subject"
-                />
-                {status === 'WHITENING' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                     <Waves className="text-white animate-[bounce_1s_infinite] mb-4" size={60} />
-                     <div className="text-4xl font-black italic uppercase tracking-tighter text-white">Bleaching...</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 flex flex-col justify-center gap-12 py-6">
-            <div className="space-y-6">
-              <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 space-y-2">
-                <div className="flex items-center gap-3 text-white/60">
-                  <Droplets size={20} className="text-blue-400" />
-                  <span className="text-xs font-black uppercase tracking-widest">Purity_Index</span>
-                </div>
-                <div className="h-1 w-full bg-white/5 overflow-hidden rounded-full">
-                  <div className={`h-full bg-white transition-all duration-[3s] ${status === 'DONE' ? 'w-full' : 'w-0'}`} />
-                </div>
-              </div>
-              <p className="text-sm font-medium text-white/30 uppercase tracking-[0.2em] leading-loose">
-                Biological textures are stripped. Albedo levels are maximized. The member is ready for the pod.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {previewUrl && status === 'READY' && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); startWhitifying(); }}
-                  className="w-full bg-white text-black py-8 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-xl shadow-[0_20px_60px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4 group/btn"
-                >
-                  BAPTIZE <Ghost size={24} className="group-hover/btn:translate-y-[-5px] transition-transform" />
-                </button>
-              )}
-
-              {status === 'DONE' && (
-                <button 
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = resultImage;
-                    link.download = "whitify_pod_member.png";
-                    link.click();
-                  }}
-                  className="w-full bg-blue-500 text-white py-8 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-xl shadow-[0_20px_60px_rgba(59,130,246,0.3)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4"
-                >
-                  EXTRACT <Download size={24} />
-                </button>
-              )}
-
-              <button 
-                onClick={triggerUpload}
-                className="w-full bg-transparent border border-white/10 text-white/20 py-5 rounded-[2.5rem] font-bold uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all"
-              >
-                {previewUrl ? 'Return to Surface' : 'Choose Target'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const GalleryView = () => (
-  <div className="max-w-7xl mx-auto py-20 px-6 animate-in fade-in slide-in-from-right-10 duration-1000">
-    <div className="flex flex-col md:flex-row items-end justify-between mb-20 gap-8">
-      <div>
-        <h2 className="text-8xl font-black italic uppercase tracking-tighter text-white">Pure Gallery</h2>
-        <p className="text-white/30 uppercase tracking-[0.5em] mt-4">The Extracted Collection</p>
-      </div>
-      <div className="text-right text-[10px] text-white/20 font-bold uppercase tracking-[0.5em] border-l border-white/10 pl-8">
-        Vault_Ref: 01-20<br/>Status: Synchronized
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
-      {[...Array(20)].map((_, i) => (
-        <div key={i} className="group relative aspect-[4/5] bg-white/5 rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-white/20 transition-all duration-500 hover:-translate-y-4">
-          <img 
-            src={`wt${i + 1}.jpg`} 
-            alt={`Pure Subject ${i + 1}`}
-            className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-1000"
-            onError={(e) => { e.target.src = `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop`; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all p-8 flex flex-col justify-end">
-            <span className="text-[10px] font-black text-white/40 tracking-widest uppercase mb-1">MEMBER_CODE: {1000 + i}</span>
-            <h4 className="text-2xl font-black italic uppercase text-white tracking-tighter">Surface Breach</h4>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const AboutView = () => (
-  <div className="max-w-4xl mx-auto py-32 px-6 animate-in fade-in zoom-in-95 duration-1000 text-center space-y-16">
-    <div className="relative inline-block">
-      <Anchor className="text-white/10 animate-[bounce_4s_infinite]" size={80} />
-      <div className="absolute inset-0 bg-blue-500 blur-[80px] opacity-20" />
-    </div>
-    <h2 className="text-7xl md:text-9xl font-black italic tracking-tighter text-white uppercase">The White Cult</h2>
-    <div className="space-y-10 text-2xl md:text-4xl font-light text-white/70 leading-relaxed font-serif italic">
-      <p>"We do not exist on the spectrum. We are the absence of it."</p>
-      <p className="text-lg md:text-xl font-sans not-italic uppercase tracking-widest text-white/30 leading-loose">
-        Born from the spray of the Great White Whale, our collective has one mandate: absolute albedo. We strip the noise, the hue, and the biological clutter to reveal the porcelain soul beneath.
-      </p>
-      <p className="text-white font-black text-5xl md:text-7xl tracking-tighter uppercase not-italic">Bleach the world.</p>
-    </div>
-  </div>
-);
-
-// --- Main App Component ---
-
-const App = () => {
-  const [view, setView] = useState('home');
-  const [image, setImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [resultImage, setResultImage] = useState(null);
-  const [status, setStatus] = useState('READY'); 
-  const [ripples, setRipples] = useState([]);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [bubbles, setBubbles] = useState([]);
-  const fileInputRef = useRef(null);
-
-  const handleInteraction = (e) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    setMousePos({ x, y });
-    
-    // Create Ripple
-    const id = Date.now();
-    setRipples(prev => [...prev, { id, x, y }]);
-    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 1000);
-
-    // Create Bubbles on Mousedown
-    if (e.type === 'mousedown') {
-      const newBubbles = Array.from({ length: 8 }).map((_, i) => ({
-        id: id + i,
-        x,
-        y,
-        size: Math.random() * 20 + 10,
-        delay: Math.random() * 0.5
-      }));
-      setBubbles(prev => [...prev, ...newBubbles]);
-      setTimeout(() => setBubbles(prev => prev.filter(b => !newBubbles.find(nb => nb.id === b.id))), 2000);
+    :root {
+      --bg:       #0e0e0e;
+      --bg2:      #141414;
+      --paper:    #f0ebe0;
+      --amber:    #c8922a;
+      --amber-dim:#8a6520;
+      --muted:    #4a4540;
+      --faint:    #222018;
+      --serif:    'IM Fell English', Georgia, serif;
+      --mono:     'JetBrains Mono', 'Courier New', monospace;
     }
-  };
 
-  const triggerUpload = () => {
-    fileInputRef.current?.click();
-  };
+    html { scroll-behavior: smooth; }
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-        setImage(reader.result.split(',')[1]);
-        setResultImage(null);
-        setStatus('READY');
-      };
-      reader.readAsDataURL(file);
+    body {
+      background: var(--bg);
+      color: var(--paper);
+      font-family: var(--serif);
+      min-height: 100vh;
+      overflow-x: hidden;
+      cursor: default;
     }
+
+    /* paper texture overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 9999;
+      opacity: 0.6;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--amber-dim); border-radius: 2px; }
+
+    ::selection { background: var(--amber); color: var(--bg); }
+
+    .fade-in {
+      animation: fadeIn 1.4s ease forwards;
+      opacity: 0;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .flicker {
+      animation: flicker 4s ease-in-out infinite;
+    }
+    @keyframes flicker {
+      0%,100% { opacity: 1; }
+      48%      { opacity: 1; }
+      50%      { opacity: 0.7; }
+      52%      { opacity: 1; }
+      80%      { opacity: 0.85; }
+      82%      { opacity: 1; }
+    }
+
+    .blink {
+      animation: blink 1.1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    @keyframes charIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes burnOut {
+      0%   { opacity: 1; filter: none; }
+      60%  { opacity: 0.6; filter: sepia(1) brightness(1.8) contrast(1.2); }
+      100% { opacity: 0; filter: sepia(1) brightness(3) blur(4px); }
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes pulseAmber {
+      0%,100% { box-shadow: 0 0 0 0 rgba(200,146,42,0); }
+      50%     { box-shadow: 0 0 20px 4px rgba(200,146,42,0.25); }
+    }
+
+    textarea:focus { outline: none; }
+    button { cursor: pointer; border: none; background: none; font-family: var(--serif); }
+    a { color: inherit; text-decoration: none; }
+
+    .nav-link:hover { color: var(--amber); transition: color 0.3s; }
+  `}</style>
+);
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function timeAgo(ts) {
+  if (!ts) return "just now";
+  const s = Math.floor((Date.now() - ts.toMillis()) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
+
+function sizeStyle(size) {
+  const map = { whisper: "0.72rem", normal: "1rem", scream: "1.6rem" };
+  return map[size] || "1rem";
+}
+
+function truncate(addr) {
+  if (!addr) return "";
+  return addr.slice(0,4) + "..." + addr.slice(-4);
+}
+
+// ─── COPY CA ─────────────────────────────────────────────────────────────────
+function CopyCA() {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(CONTRACT_ADDRESS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
+  return (
+    <div onClick={copy} title="Click to copy contract address" style={{
+      display: "inline-flex", alignItems: "center", gap: "8px",
+      fontFamily: "var(--mono)", fontSize: "0.65rem",
+      color: copied ? "var(--amber)" : "var(--muted)",
+      cursor: "pointer", transition: "color 0.3s",
+      border: "1px solid", borderColor: copied ? "var(--amber)" : "var(--muted)",
+      borderRadius: "4px", padding: "4px 10px", letterSpacing: "0.03em",
+    }}>
+      <span>$CFN</span>
+      <span style={{ color: "var(--muted)", fontSize: "0.6rem" }}>|</span>
+      <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {CONTRACT_ADDRESS}
+      </span>
+      <span style={{ fontSize: "0.6rem" }}>{copied ? "✓ copied" : "⎘"}</span>
+    </div>
+  );
+}
 
-  const startWhitifying = async () => {
-    if (!image) return;
-    setStatus('WHITENING');
-    
-    const storm = Array.from({ length: 30 }).map((_, i) => ({
-      id: Math.random(),
-      x: window.innerWidth / 2 + (Math.random() - 0.5) * 400,
-      y: window.innerHeight / 2 + (Math.random() - 0.5) * 400,
-      size: Math.random() * 40 + 20,
-      delay: Math.random() * 1
-    }));
-    setBubbles(prev => [...prev, ...storm]);
+// ─── NAVBAR ──────────────────────────────────────────────────────────────────
+function Navbar({ page, setPage, soundOn, toggleSound }) {
+  return (
+    <nav style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "18px 32px",
+      background: "linear-gradient(to bottom, rgba(14,14,14,0.98) 0%, rgba(14,14,14,0) 100%)",
+    }}>
+      {/* LOGO */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <img
+          src="/logo.png"
+          alt="ConfessCoin"
+          style={{ height: "32px", width: "auto", opacity: 0.92 }}
+          onError={e => { e.target.style.display = "none"; }}
+        />
+        <span
+          onClick={() => setPage("wall")}
+          style={{
+            fontFamily: "var(--serif)", fontStyle: "italic",
+            fontSize: "1.1rem", letterSpacing: "0.12em",
+            color: "var(--paper)", cursor: "pointer",
+          }}
+        >
+          CONFESS
+        </span>
+      </div>
 
+      {/* NAV */}
+      <div style={{ display: "flex", alignItems: "center", gap: "28px", fontFamily: "var(--mono)", fontSize: "0.65rem", letterSpacing: "0.12em", color: "var(--muted)" }}>
+        <span
+          className="nav-link"
+          onClick={() => setPage("wall")}
+          style={{ color: page === "wall" ? "var(--paper)" : undefined, cursor: "pointer" }}
+        >THE WALL</span>
+        <span
+          className="nav-link"
+          onClick={() => setPage("chain")}
+          style={{ color: page === "chain" ? "var(--amber)" : undefined, cursor: "pointer" }}
+        >⛓ ON-CHAIN</span>
+        <span
+          className="nav-link"
+          onClick={() => setPage("lore")}
+          style={{ color: page === "lore" ? "var(--paper)" : undefined, cursor: "pointer" }}
+        >WHY THIS EXISTS</span>
+
+        <div style={{ width: "1px", height: "14px", background: "var(--muted)" }} />
+
+        {/* Social */}
+        <a href={SOCIAL.x} target="_blank" rel="noopener noreferrer" className="nav-link" title="X">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.258 5.63 5.906-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+        </a>
+        <a href={SOCIAL.xCommunity} target="_blank" rel="noopener noreferrer" className="nav-link" title="X Community">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/>
+          </svg>
+        </a>
+        <a href={SOCIAL.github} target="_blank" rel="noopener noreferrer" className="nav-link" title="GitHub">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/>
+          </svg>
+        </a>
+
+        <div style={{ width: "1px", height: "14px", background: "var(--muted)" }} />
+
+        {/* Sound toggle */}
+        <span
+          onClick={toggleSound}
+          title={soundOn ? "Silence" : "Ambient sound"}
+          style={{ cursor: "pointer", fontSize: "0.8rem", opacity: soundOn ? 1 : 0.4, transition: "opacity 0.3s" }}
+        >🔔</span>
+      </div>
+    </nav>
+  );
+}
+
+// ─── REACTION BAR ────────────────────────────────────────────────────────────
+function ReactionBar({ confessionId, reactions, onBurnPrompt }) {
+  const [reacted, setReacted] = useState({});
+
+  const handleReact = async (key) => {
+    if (reacted[key]) return;
+    if (key === "fire") { onBurnPrompt(confessionId); return; }
     try {
-      const payload = {
-        contents: [{
-          parts: [
-            { text: WHITIFY_PROMPT },
-            { inlineData: { mimeType: "image/png", data: image } }
-          ]
-        }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-      };
-
-      const result = await fetchWithRetry(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      const base64Data = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-      if (base64Data) {
-        setResultImage(`data:image/png;base64,${base64Data}`);
-        setStatus('DONE');
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus('READY');
-    }
-  };
-
-  const fetchWithRetry = async (url, options, retries = 5, backoff = 1000) => {
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`Status: ${response.status}`);
-      return await response.json();
-    } catch (err) {
-      if (retries > 0) {
-        await new Promise(r => setTimeout(r, backoff));
-        return fetchWithRetry(url, options, retries - 1, backoff * 2);
-      }
-      throw err;
-    }
+      const ref = doc(db, "confessions", confessionId);
+      const upd = {};
+      upd[`reactions.${key}`] = (reactions[key] || 0) + 1;
+      await updateDoc(ref, upd);
+      setReacted(r => ({ ...r, [key]: true }));
+    } catch {}
   };
 
   return (
-    <div 
-      className="min-h-screen bg-[#000] text-white font-sans selection:bg-white selection:text-black overflow-x-hidden relative cursor-none"
-      onMouseMove={handleInteraction}
-      onMouseDown={handleInteraction}
-    >
-      <div 
-        className="fixed inset-0 opacity-20 pointer-events-none grayscale bg-cover bg-center"
-        style={{ backgroundImage: "url('bg.jpg')" }}
-      />
-
-      {/* RIPPLE & BUBBLE LAYER */}
-      <div className="fixed inset-0 pointer-events-none z-[1000]">
-        {ripples.map(r => (
-          <div 
-            key={r.id}
-            className="absolute rounded-full border border-white/20 animate-[ripple_1s_ease-out_forwards]"
-            style={{ left: r.x - 50, top: r.y - 50, width: 100, height: 100 }}
-          />
-        ))}
-        {bubbles.map(b => (
-          <div 
-            key={b.id}
-            className="absolute rounded-full border border-white/40 animate-[bubble_2s_ease-out_forwards] backdrop-blur-[1px]"
-            style={{ 
-              left: b.x, 
-              top: b.y, 
-              width: b.size, 
-              height: b.size,
-              animationDelay: `${b.delay}s`
-            }}
-          />
-        ))}
-      </div>
-
-      {/* CUSTOM CURSOR */}
-      <div 
-        className="fixed z-[9999] pointer-events-none transition-transform duration-75 ease-out flex items-center justify-center"
-        style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }}
-      >
-        <div className="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center">
-          <div className="w-1 h-1 bg-white rounded-full animate-ping" />
-        </div>
-      </div>
-
-      <nav className="relative z-[1500] p-10 flex justify-between items-center max-w-[1600px] mx-auto">
-        <div onClick={() => setView('home')} className="flex items-center gap-4 cursor-pointer group">
-          <img src="logo.png" alt="Whitify" className="h-10 w-auto brightness-200 contrast-150 transition-all group-hover:rotate-12" />
-          <span className="font-black text-3xl tracking-tighter uppercase italic group-hover:tracking-widest transition-all">Whitify</span>
-        </div>
-        <div className="flex gap-12 text-[10px] font-black uppercase tracking-[0.5em] text-white/30">
-          {['home', 'gallery', 'about'].map(v => (
-            <span 
-              key={v}
-              onClick={() => setView(v)} 
-              className={`cursor-pointer transition-all hover:text-white relative ${view === v ? 'text-white' : ''}`}
-            >
-              {v === 'about' ? 'The Cult' : v === 'gallery' ? 'Pure Gallery' : 'Entry'}
-              {view === v && <div className="absolute -bottom-2 left-0 w-full h-px bg-white animate-pulse" />}
-            </span>
-          ))}
-        </div>
-      </nav>
-
-      <main className="relative z-[1400] pb-32">
-        {view === 'home' && (
-          <HomeView 
-            previewUrl={previewUrl} 
-            resultImage={resultImage} 
-            status={status} 
-            startWhitifying={startWhitifying}
-            triggerUpload={triggerUpload}
-          />
-        )}
-        {view === 'gallery' && <GalleryView />}
-        {view === 'about' && <AboutView />}
-        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-      </main>
-
-      <footer className="py-20 flex flex-col items-center gap-10 opacity-30 relative z-[1400]">
-        <div className="flex gap-12 animate-[ticker_40s_linear_infinite] whitespace-nowrap text-[9px] font-black uppercase tracking-[1em]">
-          <span>{Array(10).fill("JOIN THE POD // RETURN TO WHITE // BORN OF THE WHALE").join(" // ")}</span>
-        </div>
-      </footer>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;800&family=Playfair+Display:ital,wght@1,400;1,900&display=swap');
-        
-        body {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          background-color: #000;
-          overflow-x: hidden;
-        }
-
-        h1, h2, h3, .font-serif {
-          font-family: 'Playfair Display', serif;
-        }
-
-        @keyframes ripple {
-          0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(4); opacity: 0; }
-        }
-
-        @keyframes bubble {
-          0% { transform: translateY(0) scale(1); opacity: 0; }
-          20% { opacity: 0.6; }
-          100% { transform: translateY(-300px) scale(0.5); opacity: 0; }
-        }
-
-        @keyframes breach {
-          0% { transform: translateY(100px) scale(0.8); filter: blur(20px) brightness(5); }
-          100% { transform: translateY(0) scale(1); filter: blur(0) brightness(1); }
-        }
-
-        @keyframes ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-
-        ::-webkit-scrollbar { width: 0px; }
-      `}} />
+    <div style={{ display: "flex", gap: "18px", marginTop: "14px", flexWrap: "wrap" }}>
+      {REACTIONS.map(r => (
+        <button
+          key={r.key}
+          onClick={() => handleReact(r.key)}
+          title={r.label}
+          style={{
+            display: "flex", alignItems: "center", gap: "5px",
+            fontFamily: "var(--mono)", fontSize: "0.62rem",
+            color: reacted[r.key] ? "var(--amber)" : "var(--muted)",
+            opacity: reacted[r.key] ? 1 : 0.7,
+            transition: "all 0.2s",
+            padding: "2px 0",
+          }}
+        >
+          <span style={{ fontSize: "0.85rem" }}>{r.symbol}</span>
+          <span>{reactions[r.key] || 0}</span>
+        </button>
+      ))}
     </div>
   );
+}
+
+// ─── CONFESSION CARD ─────────────────────────────────────────────────────────
+function ConfessionCard({ data, index, onBurnPrompt }) {
+  const isNew = data.timestamp && (Date.now() - data.timestamp.toMillis()) < 10000;
+
+  return (
+    <div
+      className="fade-in"
+      style={{
+        animationDelay: `${index * 0.06}s`,
+        padding: "28px 0",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        maxWidth: "680px",
+      }}
+    >
+      <p style={{
+        fontFamily: "var(--serif)",
+        fontStyle: "italic",
+        fontSize: sizeStyle(data.size),
+        lineHeight: 1.75,
+        color: "var(--paper)",
+        letterSpacing: "0.01em",
+      }}>
+        {data.text}
+      </p>
+
+      <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "14px" }}>
+        <span style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)" }}>
+          {timeAgo(data.timestamp)}
+        </span>
+        {data.category && (
+          <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber-dim)" }}>
+            {CATEGORIES.find(c => c.key === data.category)?.symbol}
+          </span>
+        )}
+        {data.burned && data.txHash && (
+          <a
+            href={`https://solscan.io/tx/${data.txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View on Solana"
+            className="flicker"
+            style={{ fontSize: "0.85rem", opacity: 0.85 }}
+          >🔥</a>
+        )}
+        {isNew && (
+          <span style={{ fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--amber)", opacity: 0.7 }}>
+            ● live
+          </span>
+        )}
+      </div>
+
+      <ReactionBar
+        confessionId={data.id}
+        reactions={data.reactions || {}}
+        onBurnPrompt={onBurnPrompt}
+      />
+    </div>
+  );
+}
+
+// ─── CONFESS MODAL ───────────────────────────────────────────────────────────
+function ConfessModal({ onClose, onSubmitted }) {
+  const [text, setText] = useState("");
+  const [size, setSize] = useState(50);
+  const [category, setCategory] = useState("");
+  const [burnForever, setBurnForever] = useState(false);
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [phase, setPhase] = useState("write"); // write | submitting | done | burning
+  const [showCategories, setShowCategories] = useState(false);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) textareaRef.current.focus();
+  }, []);
+
+  const sizeLabel = size < 33 ? "whisper" : size < 66 ? "normal" : "scream";
+
+  const connectWallet = async () => {
+    try {
+      const { solana } = window;
+      if (!solana?.isPhantom) {
+        alert("Phantom wallet not found. Please install it from phantom.app");
+        return;
+      }
+      const resp = await solana.connect();
+      setWalletAddress(resp.publicKey.toString());
+    } catch {}
+  };
+
+  const handleSubmit = async () => {
+    if (!text.trim() || text.trim().length < 3) return;
+
+    setPhase("submitting");
+
+    let txHash = null;
+
+    if (burnForever) {
+      // Solana burn flow
+      try {
+        const { solana, solanaWeb3 } = window;
+        if (!solana?.isPhantom) throw new Error("No phantom");
+
+        // We encode the confession as a memo instruction
+        const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = solanaWeb3;
+        const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+        const pubkey = new PublicKey(walletAddress);
+        const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+        const { blockhash } = await connection.getLatestBlockhash();
+        const tx = new Transaction({ recentBlockhash: blockhash, feePayer: pubkey });
+
+        // Add memo
+        const memoIx = {
+          keys: [],
+          programId: MEMO_PROGRAM,
+          data: Buffer.from(text.trim().slice(0, 566)),
+        };
+        tx.add(memoIx);
+
+        // Also send 0.01 SOL to self (proof of burn)
+        tx.add(SystemProgram.transfer({
+          fromPubkey: pubkey,
+          toPubkey: pubkey,
+          lamports: BURN_AMOUNT_SOL * LAMPORTS_PER_SOL,
+        }));
+
+        const signed = await solana.signTransaction(tx);
+        txHash = await connection.sendRawTransaction(signed.serialize());
+        setPhase("burning");
+        await connection.confirmTransaction(txHash, "confirmed");
+      } catch (e) {
+        console.error("Burn failed:", e);
+        setBurnForever(false);
+        txHash = null;
+      }
+    }
+
+    // Save to Firebase
+    try {
+      await addDoc(collection(db, "confessions"), {
+        text: text.trim(),
+        size: sizeLabel,
+        category: category || null,
+        burned: burnForever && !!txHash,
+        txHash: txHash || null,
+        timestamp: serverTimestamp(),
+        reactions: { candle: 0, heavy: 0, eye: 0, fire: 0, grave: 0 },
+      });
+    } catch {}
+
+    setPhase("done");
+    setTimeout(() => {
+      onSubmitted();
+    }, 3000);
+  };
+
+  // Phase: burning animation
+  if (phase === "burning") {
+    return (
+      <div style={overlayStyle}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "3rem", marginBottom: "24px", animation: "flicker 0.5s ease infinite" }}>🔥</div>
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.75rem", color: "var(--amber)", letterSpacing: "0.1em" }}>
+            writing to the chain...
+          </p>
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", marginTop: "12px" }}>
+            this will take a moment. it lives forever after this.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Phase: done
+  if (phase === "done") {
+    return (
+      <div style={overlayStyle}>
+        <div className="fade-in" style={{ textAlign: "center" }}>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.4rem", color: "var(--paper)", marginBottom: "16px" }}>
+            it's gone.
+          </p>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.1rem", color: "var(--muted)" }}>
+            you're lighter now.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...overlayStyle, animation: "modalIn 0.4s ease" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{
+        width: "100%", maxWidth: "680px", padding: "0 24px",
+        display: "flex", flexDirection: "column", gap: "28px",
+      }}>
+        {/* Textarea */}
+        <div style={{ position: "relative" }}>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            maxLength={1200}
+            style={{
+              width: "100%", minHeight: "200px",
+              background: "transparent", border: "none",
+              color: "var(--paper)",
+              fontFamily: "var(--serif)", fontStyle: "italic",
+              fontSize: sizeStyle(sizeLabel),
+              lineHeight: 1.8, resize: "none",
+              caretColor: "var(--amber)",
+            }}
+          />
+          {!text && (
+            <span className="blink" style={{
+              position: "absolute", top: 0, left: 0,
+              color: "var(--amber)", fontSize: sizeStyle(sizeLabel),
+              fontFamily: "var(--serif)", pointerEvents: "none",
+            }}>|</span>
+          )}
+          <div style={{
+            position: "absolute", bottom: "-20px", right: 0,
+            fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)",
+          }}>{text.length}/1200</div>
+        </div>
+
+        {/* Size slider */}
+        <div style={{ marginTop: "8px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)" }}>whisper</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber)", letterSpacing: "0.05em" }}>{sizeLabel}</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)" }}>scream</span>
+          </div>
+          <input
+            type="range" min="0" max="100" value={size}
+            onChange={e => setSize(Number(e.target.value))}
+            style={{
+              width: "100%", accentColor: "var(--amber)",
+              background: "transparent", height: "2px",
+            }}
+          />
+        </div>
+
+        {/* Category picker */}
+        <div>
+          <button
+            onClick={() => setShowCategories(s => !s)}
+            style={{
+              fontFamily: "var(--mono)", fontSize: "0.6rem",
+              color: category ? "var(--amber)" : "var(--muted)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            {category ? `${CATEGORIES.find(c => c.key === category)?.symbol} ${CATEGORIES.find(c => c.key === category)?.label}` : "▸ categorize (optional)"}
+          </button>
+          {showCategories && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "12px" }}>
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.key}
+                  onClick={() => { setCategory(cat.key); setShowCategories(false); }}
+                  style={{
+                    fontFamily: "var(--mono)", fontSize: "0.6rem",
+                    color: category === cat.key ? "var(--amber)" : "var(--muted)",
+                    padding: "5px 10px",
+                    border: `1px solid ${category === cat.key ? "var(--amber)" : "var(--muted)"}`,
+                    borderRadius: "3px", letterSpacing: "0.05em",
+                    transition: "all 0.2s",
+                  }}
+                >{cat.symbol} {cat.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Burn forever */}
+        <div style={{
+          padding: "18px 20px",
+          border: burnForever ? "1px solid var(--amber)" : "1px solid var(--muted)",
+          borderRadius: "4px", transition: "border-color 0.3s",
+        }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "14px", cursor: "pointer" }}>
+            <input
+              type="checkbox" checked={burnForever}
+              onChange={e => {
+                setBurnForever(e.target.checked);
+                if (e.target.checked && !walletAddress) connectWallet();
+              }}
+              style={{ accentColor: "var(--amber)", marginTop: "2px", width: "14px", height: "14px", flexShrink: 0 }}
+            />
+            <div>
+              <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "0.95rem", color: "var(--paper)" }}>
+                🔥 Burn this to chain forever
+              </p>
+              <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", marginTop: "5px", lineHeight: 1.6 }}>
+                0.01 SOL · written permanently on Solana · immutable · no one can delete it
+              </p>
+              {burnForever && walletAddress && (
+                <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--amber)", marginTop: "6px" }}>
+                  ✓ {truncate(walletAddress)}
+                </p>
+              )}
+              {burnForever && !walletAddress && (
+                <button
+                  onClick={connectWallet}
+                  style={{
+                    fontFamily: "var(--mono)", fontSize: "0.6rem",
+                    color: "var(--amber)", marginTop: "6px",
+                    letterSpacing: "0.05em",
+                  }}
+                >connect phantom →</button>
+              )}
+            </div>
+          </label>
+        </div>
+
+        {/* Submit */}
+        <button
+          onClick={handleSubmit}
+          disabled={!text.trim() || text.trim().length < 3 || phase === "submitting"}
+          style={{
+            alignSelf: "flex-start",
+            fontFamily: "var(--serif)", fontStyle: "italic",
+            fontSize: "1.1rem", letterSpacing: "0.06em",
+            color: text.trim().length >= 3 ? "var(--paper)" : "var(--muted)",
+            transition: "color 0.3s",
+            padding: "10px 0",
+            animation: text.trim().length >= 3 ? "pulseAmber 3s ease infinite" : "none",
+          }}
+        >
+          {phase === "submitting" ? "releasing..." : "release it"}
+        </button>
+
+        {/* Close */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: "24px", right: "32px",
+            fontFamily: "var(--mono)", fontSize: "0.65rem",
+            color: "var(--muted)", letterSpacing: "0.08em",
+          }}
+        >esc</button>
+      </div>
+    </div>
+  );
+}
+
+const overlayStyle = {
+  position: "fixed", inset: 0, zIndex: 500,
+  background: "rgba(10,10,10,0.97)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  animation: "modalIn 0.3s ease",
 };
 
-export default App;
+// ─── THE WALL PAGE ────────────────────────────────────────────────────────────
+function WallPage({ onBurnPrompt }) {
+  const [confessions, setConfessions] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [showFilter, setShowFilter] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "confessions"),
+      orderBy("timestamp", "desc"),
+      limit(60)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setConfessions(docs);
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  const filtered = activeCategory
+    ? confessions.filter(c => c.category === activeCategory)
+    : confessions;
+
+  return (
+    <div style={{ paddingTop: "96px", paddingBottom: "120px", maxWidth: "800px", margin: "0 auto", padding: "96px 32px 140px" }}>
+
+      {/* Filter bar */}
+      <div style={{ marginBottom: "48px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        <button
+          onClick={() => setShowFilter(s => !s)}
+          style={{
+            fontFamily: "var(--mono)", fontSize: "0.6rem", letterSpacing: "0.1em",
+            color: activeCategory ? "var(--amber)" : "var(--muted)",
+          }}
+        >⊞ filter {activeCategory ? "· " + CATEGORIES.find(c => c.key === activeCategory)?.symbol : ""}</button>
+
+        {activeCategory && (
+          <button
+            onClick={() => setActiveCategory(null)}
+            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em" }}
+          >× clear</button>
+        )}
+
+        {showFilter && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: "100%" }}>
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.key}
+                onClick={() => { setActiveCategory(cat.key); setShowFilter(false); }}
+                style={{
+                  fontFamily: "var(--mono)", fontSize: "0.58rem",
+                  color: activeCategory === cat.key ? "var(--amber)" : "var(--muted)",
+                  padding: "4px 10px",
+                  border: `1px solid ${activeCategory === cat.key ? "var(--amber)" : "var(--faint)"}`,
+                  borderRadius: "3px", letterSpacing: "0.04em",
+                  transition: "all 0.2s", background: "var(--bg2)",
+                }}
+              >{cat.symbol} {cat.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Live count */}
+      <div style={{ marginBottom: "40px" }}>
+        <span style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.1em" }}>
+          {filtered.length} confession{filtered.length !== 1 ? "s" : ""} {activeCategory ? "in this category" : "on the wall"}
+        </span>
+      </div>
+
+      {loading ? (
+        <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
+          reading the wall<span className="blink">...</span>
+        </p>
+      ) : filtered.length === 0 ? (
+        <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1rem", color: "var(--muted)" }}>
+          nothing here yet. be the first.
+        </p>
+      ) : (
+        filtered.map((c, i) => (
+          <ConfessionCard key={c.id} data={c} index={i} onBurnPrompt={onBurnPrompt} />
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── CHAIN WALL PAGE ──────────────────────────────────────────────────────────
+function ChainWallPage() {
+  const [burned, setBurned] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "confessions"),
+      where("burned", "==", true),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
+    const unsub = onSnapshot(q, snap => {
+      setBurned(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  return (
+    <div style={{ paddingTop: "96px", paddingBottom: "140px", maxWidth: "800px", margin: "0 auto", padding: "96px 32px 140px" }}>
+      <div style={{ marginBottom: "56px" }}>
+        <h1 style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "2rem", color: "var(--paper)", marginBottom: "16px" }}>
+          The Chain Wall
+        </h1>
+        <p style={{ fontFamily: "var(--mono)", fontSize: "0.68rem", color: "var(--muted)", lineHeight: 1.8, maxWidth: "500px" }}>
+          Everything else on the internet disappears. These don't.<br />
+          Written permanently on the Solana blockchain. Immutable. Forever.
+        </p>
+        <div style={{ marginTop: "20px", width: "60px", height: "1px", background: "var(--amber-dim)" }} />
+      </div>
+
+      {loading ? (
+        <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
+          reading the chain<span className="blink">...</span>
+        </p>
+      ) : burned.length === 0 ? (
+        <div>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1rem", color: "var(--muted)" }}>
+            No confessions have been burned yet.
+          </p>
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.65rem", color: "var(--muted)", marginTop: "12px" }}>
+            Be the first to write something that lasts.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+          {burned.map((c, i) => (
+            <div
+              key={c.id}
+              className="fade-in"
+              style={{
+                animationDelay: `${i * 0.08}s`,
+                padding: "32px 0",
+                borderBottom: "1px solid rgba(200,146,42,0.12)",
+              }}
+            >
+              <p style={{
+                fontFamily: "var(--serif)", fontStyle: "italic",
+                fontSize: sizeStyle(c.size),
+                color: "var(--paper)", lineHeight: 1.8,
+                opacity: 0.9,
+              }}>{c.text}</p>
+
+              <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber-dim)" }}>
+                  {timeAgo(c.timestamp)}
+                </span>
+                {c.txHash && (
+                  <a
+                    href={`https://solscan.io/tx/${c.txHash}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{
+                      fontFamily: "var(--mono)", fontSize: "0.58rem",
+                      color: "var(--amber)", letterSpacing: "0.05em",
+                      textDecoration: "none",
+                    }}
+                  >🔥 {truncate(c.txHash)} →</a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── LORE PAGE ────────────────────────────────────────────────────────────────
+function LorePage() {
+  return (
+    <div style={{ paddingTop: "120px", paddingBottom: "160px", maxWidth: "600px", margin: "0 auto", padding: "120px 32px 160px" }}>
+      <h1 style={{
+        fontFamily: "var(--serif)", fontStyle: "italic",
+        fontSize: "1.6rem", color: "var(--paper)",
+        marginBottom: "52px", letterSpacing: "0.04em",
+      }}>
+        Why This Exists
+      </h1>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        {[
+          "In 2014, someone built ConfessionCoin. They let people write their sins on the Bitcoin blockchain. It died. Nobody built it again. Until now.",
+          "The internet never gave people a real place to say the thing. Not to perform it. Not to build an audience with it. Not to be brave about it. Just to say it — and have it witnessed by strangers who will never know who you are.",
+          "Every platform you've ever used was designed to make you more visible. More legible. More monetizable. This one is designed to do the opposite. You are no one here. Your confession is everything.",
+          "The blockchain part isn't a gimmick. It's a promise. When something is written on-chain, it can't be taken down by a company, a government, a moderator, or a moment of regret. Some things deserve to last. Some things need to last.",
+          "We're not building a community. We're building a wall. A very old, very dark, very honest wall. Come and write on it.",
+        ].map((para, i) => (
+          <p key={i} className="fade-in" style={{
+            animationDelay: `${i * 0.2}s`,
+            fontFamily: "var(--serif)", fontStyle: i % 2 === 0 ? "italic" : "normal",
+            fontSize: i === 0 ? "1.05rem" : "0.95rem",
+            lineHeight: 1.9,
+            color: i === 0 ? "var(--paper)" : "rgba(240,235,224,0.7)",
+            paddingLeft: i === 0 ? 0 : "20px",
+            borderLeft: i === 0 ? "none" : "1px solid var(--muted)",
+          }}>{para}</p>
+        ))}
+      </div>
+
+      <div style={{ marginTop: "64px", padding: "28px", border: "1px solid var(--faint)", borderRadius: "4px" }}>
+        <p style={{ fontFamily: "var(--mono)", fontSize: "0.62rem", color: "var(--muted)", lineHeight: 1.8, marginBottom: "16px" }}>
+          $CFN · ConfessCoin
+        </p>
+        <CopyCA />
+        <div style={{ marginTop: "20px", display: "flex", gap: "20px" }}>
+          <a href={SOCIAL.x} target="_blank" rel="noopener noreferrer"
+            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
+            className="nav-link">X →</a>
+          <a href={SOCIAL.xCommunity} target="_blank" rel="noopener noreferrer"
+            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
+            className="nav-link">community →</a>
+          <a href={SOCIAL.github} target="_blank" rel="noopener noreferrer"
+            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
+            className="nav-link">github →</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── FLOATING CONFESS BUTTON ──────────────────────────────────────────────────
+function ConfessButton({ onClick }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "fixed", bottom: "36px", left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 200,
+        fontFamily: "var(--serif)", fontStyle: "italic",
+        fontSize: "1rem", letterSpacing: "0.18em",
+        color: hovered ? "var(--bg)" : "var(--amber)",
+        background: hovered ? "var(--amber)" : "transparent",
+        border: "1px solid var(--amber)",
+        padding: "14px 44px",
+        borderRadius: "2px",
+        transition: "all 0.3s ease",
+        boxShadow: hovered ? "0 0 32px rgba(200,146,42,0.5)" : "0 0 16px rgba(200,146,42,0.15)",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      CONFESS
+    </button>
+  );
+}
+
+// ─── SOUND ────────────────────────────────────────────────────────────────────
+function useAmbientSound(enabled) {
+  const audioRef = useRef(null);
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio("/thesound.mp3");
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.18;
+    }
+    if (enabled) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
+  }, [enabled]);
+}
+
+// ─── APP ROOT ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [page, setPage] = useState("wall");
+  const [showConfess, setShowConfess] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const [burnTarget, setBurnTarget] = useState(null);
+
+  useAmbientSound(soundOn);
+
+  const handleBurnPrompt = (confessionId) => {
+    setBurnTarget(confessionId);
+    setShowConfess(true);
+  };
+
+  const handleSubmitted = () => {
+    setShowConfess(false);
+    setPage("wall");
+  };
+
+  return (
+    <>
+      <GlobalStyles />
+
+      {/* Solana Web3 CDN */}
+      <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/solana-web3.js/1.91.8/index.iife.min.js"
+        onLoad={() => { window.solanaWeb3 = window.solanaWeb3 || {}; }}
+      />
+
+      <Navbar
+        page={page}
+        setPage={setPage}
+        soundOn={soundOn}
+        toggleSound={() => setSoundOn(s => !s)}
+      />
+
+      {/* CA Bar */}
+      <div style={{
+        position: "fixed", top: "64px", left: 0, right: 0, zIndex: 90,
+        display: "flex", justifyContent: "center", padding: "6px",
+        background: "rgba(14,14,14,0.85)", borderBottom: "1px solid var(--faint)",
+        backdropFilter: "blur(6px)",
+      }}>
+        <CopyCA />
+      </div>
+
+      {/* Pages */}
+      <div style={{ paddingTop: "30px" }}>
+        {page === "wall"  && <WallPage onBurnPrompt={handleBurnPrompt} />}
+        {page === "chain" && <ChainWallPage />}
+        {page === "lore"  && <LorePage />}
+      </div>
+
+      {/* Confess button - only on wall */}
+      {page === "wall" && !showConfess && (
+        <ConfessButton onClick={() => setShowConfess(true)} />
+      )}
+
+      {/* Modal */}
+      {showConfess && (
+        <ConfessModal
+          onClose={() => setShowConfess(false)}
+          onSubmitted={handleSubmitted}
+        />
+      )}
+    </>
+  );
+}
