@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore, collection, addDoc, getDocs, query,
-  orderBy, limit, onSnapshot, updateDoc, doc, serverTimestamp, where
+  getFirestore, collection, addDoc, query, orderBy,
+  limit, onSnapshot, updateDoc, doc, serverTimestamp, where
 } from "firebase/firestore";
 
-// ─── FIREBASE ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// FIREBASE
+// ─────────────────────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyB_gNokFnucM2nNAhhkRRnPsPNBAShYlMs",
   authDomain: "it-token.firebaseapp.com",
@@ -14,885 +16,1380 @@ const firebaseConfig = {
   messagingSenderId: "804328953904",
   appId: "1:804328953904:web:e760545b579bf2527075f5"
 };
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const CONTRACT_ADDRESS = "PASTE_CA_HERE"; // <-- replace with real CA
-const BURN_AMOUNT_SOL = 0.01;
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+const CONTRACT_ADDRESS = "PASTE_YOUR_CA_HERE";
+const BURN_SOL = 0.01;
+
 const REACTIONS = [
-  { key: "candle", symbol: "🕯️", label: "I've felt this" },
-  { key: "heavy",  symbol: "🪨", label: "heavy" },
-  { key: "eye",    symbol: "👁️", label: "I see you" },
-  { key: "fire",   symbol: "🔥", label: "burn it" },
-  { key: "grave",  symbol: "💀", label: "take it to the grave" },
+  { key: "candle", emoji: "🕯️", label: "I've felt this" },
+  { key: "heavy",  emoji: "🪨", label: "heavy" },
+  { key: "eye",    emoji: "👁️", label: "I see you" },
+  { key: "fire",   emoji: "🔥", label: "burn it on-chain" },
+  { key: "grave",  emoji: "💀", label: "take it to the grave" },
 ];
+
 const CATEGORIES = [
-  { key: "crypto",  symbol: "💸", label: "Money & Crypto" },
-  { key: "love",    symbol: "❤️",  label: "Love & Betrayal" },
-  { key: "family",  symbol: "👨‍👩‍👧", label: "Family" },
-  { key: "self",    symbol: "🪞", label: "Things I did to myself" },
-  { key: "online",  symbol: "🌐", label: "Things I did online" },
-  { key: "unsaid",  symbol: "☠️", label: "Things I'd never say out loud" },
-  { key: "good",    symbol: "✨", label: "Good things I'm ashamed to feel good about" },
+  { key: "crypto",  emoji: "💸", label: "Money & Crypto" },
+  { key: "love",    emoji: "❤️",  label: "Love & Betrayal" },
+  { key: "family",  emoji: "👨‍👩‍👧", label: "Family" },
+  { key: "self",    emoji: "🪞", label: "Things I did to myself" },
+  { key: "online",  emoji: "🌐", label: "Things I did online" },
+  { key: "unsaid",  emoji: "☠️", label: "Never say out loud" },
+  { key: "good",    emoji: "✨", label: "Ashamed to feel good about" },
 ];
-const SOCIAL = {
-  x:          "https://x.com/confessioncoin",
-  xCommunity: "https://x.com/i/communities/confessioncoin",
-  github:     "https://github.com/confessioncoin/confessioncoin",
+
+const SOCIALS = {
+  x:         "https://x.com/confessioncoin",
+  community: "https://x.com/i/communities/confessioncoin",
+  github:    "https://github.com/confessioncoin/confessioncoin",
 };
 
-// ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
-const GlobalStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=JetBrains+Mono:wght@300;400;500&display=swap');
+// ─────────────────────────────────────────────────────────────────────────────
+// CSS INJECTION
+// ─────────────────────────────────────────────────────────────────────────────
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Cormorant+SC:wght@300;400;500&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --bg:       #0e0e0e;
-      --bg2:      #141414;
-      --paper:    #f0ebe0;
-      --amber:    #c8922a;
-      --amber-dim:#8a6520;
-      --muted:    #4a4540;
-      --faint:    #222018;
-      --serif:    'IM Fell English', Georgia, serif;
-      --mono:     'JetBrains Mono', 'Courier New', monospace;
-    }
+  :root {
+    --bg:         #080807;
+    --bg1:        #0d0d0b;
+    --bg2:        #121210;
+    --bg3:        #1a1a17;
+    --surface:    #1f1f1c;
+    --border:     rgba(255,255,255,0.06);
+    --border2:    rgba(255,255,255,0.1);
+    --paper:      #ede8dc;
+    --paper2:     #c8c2b4;
+    --paper3:     #7a7570;
+    --amber:      #c8922a;
+    --amber2:     #e0a83a;
+    --amber-glow: rgba(200,146,42,0.15);
+    --amber-dim:  rgba(200,146,42,0.4);
+    --serif:      'Cormorant Garamond', Georgia, serif;
+    --serif-sc:   'Cormorant SC', Georgia, serif;
+    --mono:       'DM Mono', 'Courier New', monospace;
+    --radius:     3px;
+    --nav-h:      64px;
+    --ca-h:       34px;
+  }
 
-    html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; font-size: 16px; }
 
-    body {
-      background: var(--bg);
-      color: var(--paper);
-      font-family: var(--serif);
-      min-height: 100vh;
-      overflow-x: hidden;
-      cursor: default;
-    }
+  body {
+    background: var(--bg);
+    color: var(--paper);
+    font-family: var(--serif);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-    /* paper texture overlay */
-    body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 9999;
-      opacity: 0.6;
-    }
+  /* Grain */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 9998;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='512' height='512' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    mix-blend-mode: overlay;
+  }
 
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { background: var(--amber-dim); border-radius: 2px; }
+  /* Vignette */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 9997;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(4,4,3,0.65) 100%);
+  }
 
-    ::selection { background: var(--amber); color: var(--bg); }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--amber-dim); }
+  ::selection { background: var(--amber); color: var(--bg); }
 
-    .fade-in {
-      animation: fadeIn 1.4s ease forwards;
-      opacity: 0;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+  button { cursor: pointer; border: none; background: none; font-family: inherit; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+  textarea, input { font-family: inherit; }
 
-    .flicker {
-      animation: flicker 4s ease-in-out infinite;
-    }
-    @keyframes flicker {
-      0%,100% { opacity: 1; }
-      48%      { opacity: 1; }
-      50%      { opacity: 0.7; }
-      52%      { opacity: 1; }
-      80%      { opacity: 0.85; }
-      82%      { opacity: 1; }
-    }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes flicker {
+    0%,100% { opacity:1 }
+    41%     { opacity:1 }
+    42%     { opacity:.72 }
+    43%     { opacity:1 }
+    80%     { opacity:.88 }
+    81%     { opacity:1 }
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse {
+    0%,100% { opacity:.5 }
+    50%     { opacity:1 }
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes modalIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes burnPulse {
+    0%,100% { box-shadow: 0 0 24px rgba(200,146,42,0.18), 0 0 60px rgba(200,146,42,0.05); }
+    50%     { box-shadow: 0 0 36px rgba(200,146,42,0.32), 0 0 80px rgba(200,146,42,0.1); }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position: 200% 0; }
+  }
 
-    .blink {
-      animation: blink 1.1s step-end infinite;
-    }
-    @keyframes blink { 50% { opacity: 0; } }
+  .flicker { animation: flicker 5s ease-in-out infinite; }
+  .blink   { animation: blink 1.1s step-end infinite; }
+  .pulse   { animation: pulse 2s ease-in-out infinite; }
 
-    @keyframes charIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+  /* Range input */
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 2px;
+    background: var(--border2);
+    border-radius: 1px;
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--amber);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    background: var(--amber);
+    border-radius: 50%; border: none;
+    cursor: pointer;
+  }
 
-    @keyframes burnOut {
-      0%   { opacity: 1; filter: none; }
-      60%  { opacity: 0.6; filter: sepia(1) brightness(1.8) contrast(1.2); }
-      100% { opacity: 0; filter: sepia(1) brightness(3) blur(4px); }
-    }
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 2px;
+  }
 
-    @keyframes modalIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
+  /* Nav link hover */
+  .nav-item { transition: color 0.22s; }
+  .nav-item:hover { color: var(--paper) !important; }
 
-    @keyframes pulseAmber {
-      0%,100% { box-shadow: 0 0 0 0 rgba(200,146,42,0); }
-      50%     { box-shadow: 0 0 20px 4px rgba(200,146,42,0.25); }
-    }
+  /* Responsive: hide/show */
+  @media (max-width: 768px) {
+    .desktop-only { display: none !important; }
+    :root { --nav-h: 56px; --ca-h: 30px; }
+  }
+  @media (min-width: 769px) {
+    .mobile-only { display: none !important; }
+  }
+`;
 
-    textarea:focus { outline: none; }
-    button { cursor: pointer; border: none; background: none; font-family: var(--serif); }
-    a { color: inherit; text-decoration: none; }
+function GlobalStyles() {
+  useEffect(() => {
+    const el = document.createElement("style");
+    el.textContent = CSS;
+    document.head.appendChild(el);
+    return () => document.head.removeChild(el);
+  }, []);
+  return null;
+}
 
-    .nav-link:hover { color: var(--amber); transition: color 0.3s; }
-  `}</style>
-);
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────────────────────────
 function timeAgo(ts) {
-  if (!ts) return "just now";
+  if (!ts?.toMillis) return "just now";
   const s = Math.floor((Date.now() - ts.toMillis()) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s/60)}m ago`;
-  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
-  return `${Math.floor(s/86400)}d ago`;
+  if (s < 5)    return "just now";
+  if (s < 60)   return `${s}s ago`;
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
-function sizeStyle(size) {
-  const map = { whisper: "0.72rem", normal: "1rem", scream: "1.6rem" };
-  return map[size] || "1rem";
+function sizeToFontSize(size) {
+  return { whisper: "0.8rem", normal: "1.08rem", scream: "1.55rem" }[size] || "1.08rem";
+}
+function sizeToLineHeight(size) {
+  return { whisper: 1.65, normal: 1.85, scream: 1.7 }[size] || 1.85;
+}
+function shortAddr(a) {
+  return a ? `${a.slice(0,5)}…${a.slice(-4)}` : "";
 }
 
-function truncate(addr) {
-  if (!addr) return "";
-  return addr.slice(0,4) + "..." + addr.slice(-4);
+// Per-session reaction state (one reaction per confession per session)
+const sessionReactions = new Map(); // confessionId -> reacted key | null
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AMBIENT AUDIO
+// ─────────────────────────────────────────────────────────────────────────────
+function useAmbient(on) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) {
+      ref.current = new Audio("/thesound.mp3");
+      ref.current.loop = true;
+      ref.current.volume = 0.13;
+    }
+    if (on) ref.current.play().catch(() => {});
+    else    ref.current.pause();
+  }, [on]);
 }
 
-// ─── COPY CA ─────────────────────────────────────────────────────────────────
-function CopyCA() {
+// ─────────────────────────────────────────────────────────────────────────────
+// COPY HOOK
+// ─────────────────────────────────────────────────────────────────────────────
+function useCopy(text) {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(CONTRACT_ADDRESS);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const copy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    });
+  }, [text]);
+  return [copied, copy];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────────────────────────────────────────
+function Nav({ page, setPage, sound, setSound, onConfess }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 30);
+    window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  const go = (p) => { setPage(p); setMobileOpen(false); };
+
+  const navLinks = [
+    { key: "wall",  label: "THE WALL" },
+    { key: "chain", label: "ON-CHAIN" },
+    { key: "lore",  label: "WHY THIS EXISTS" },
+  ];
+
   return (
-    <div onClick={copy} title="Click to copy contract address" style={{
-      display: "inline-flex", alignItems: "center", gap: "8px",
-      fontFamily: "var(--mono)", fontSize: "0.65rem",
-      color: copied ? "var(--amber)" : "var(--muted)",
-      cursor: "pointer", transition: "color 0.3s",
-      border: "1px solid", borderColor: copied ? "var(--amber)" : "var(--muted)",
-      borderRadius: "4px", padding: "4px 10px", letterSpacing: "0.03em",
+    <>
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000,
+        height: "var(--nav-h)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 clamp(16px, 4vw, 48px)",
+        background: scrolled ? "rgba(8,8,7,0.96)" : "rgba(8,8,7,0.3)",
+        borderBottom: `1px solid ${scrolled ? "var(--border)" : "transparent"}`,
+        transition: "background 0.4s, border-color 0.4s",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+      }}>
+        {/* Logo */}
+        <button onClick={() => go("wall")} style={{
+          display: "flex", alignItems: "center", gap: "10px",
+          flexShrink: 0,
+        }}>
+          <img src="/logo.png" alt="ConfessCoin" style={{ height: "28px", width: "auto" }}
+            onError={e => e.target.style.display = "none"} />
+          <span style={{
+            fontFamily: "var(--serif-sc)", fontWeight: 300,
+            fontSize: "clamp(0.8rem,2.5vw,1rem)", letterSpacing: "0.2em", color: "var(--paper)",
+          }}>CONFESS</span>
+        </button>
+
+        {/* Desktop right side */}
+        <div className="desktop-only" style={{ display: "flex", alignItems: "center", gap: "32px" }}>
+          {navLinks.map(l => (
+            <button key={l.key} onClick={() => go(l.key)} className="nav-item" style={{
+              fontFamily: "var(--mono)", fontSize: "0.6rem", letterSpacing: "0.13em",
+              color: page === l.key ? "var(--amber)" : "var(--paper3)",
+              paddingBottom: "2px",
+              borderBottom: `1px solid ${page === l.key ? "var(--amber)" : "transparent"}`,
+              transition: "color 0.22s, border-color 0.22s",
+            }}>{l.label}</button>
+          ))}
+
+          <div style={{ width: "1px", height: "16px", background: "var(--border2)" }} />
+
+          <SocialIcons />
+
+          <button onClick={() => setSound(s => !s)} title={sound ? "Mute" : "Ambient sound"}
+            style={{ fontSize: "0.8rem", opacity: sound ? 1 : 0.3, transition: "opacity 0.3s", lineHeight: 1 }}>
+            {sound ? "🔔" : "🔕"}
+          </button>
+
+          <button onClick={onConfess} style={{
+            fontFamily: "var(--serif-sc)", fontWeight: 400,
+            fontSize: "0.62rem", letterSpacing: "0.2em",
+            color: "var(--bg)", background: "var(--amber)",
+            padding: "10px 24px", borderRadius: "var(--radius)",
+            transition: "background 0.2s, transform 0.15s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--amber2)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--amber)"; e.currentTarget.style.transform = "translateY(0)"; }}
+          >CONFESS</button>
+        </div>
+
+        {/* Mobile right side */}
+        <div className="mobile-only" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button onClick={onConfess} style={{
+            fontFamily: "var(--serif-sc)", fontSize: "0.6rem", letterSpacing: "0.15em",
+            color: "var(--bg)", background: "var(--amber)", padding: "8px 18px", borderRadius: "var(--radius)",
+          }}>CONFESS</button>
+          <button onClick={() => setMobileOpen(o => !o)} style={{ color: "var(--paper)", padding: "4px", display: "flex" }}>
+            {mobileOpen
+              ? <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              : <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            }
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div style={{
+          position: "fixed", top: "var(--nav-h)", left: 0, right: 0, zIndex: 999,
+          background: "rgba(8,8,7,0.98)",
+          borderBottom: "1px solid var(--border)",
+          backdropFilter: "blur(24px)",
+          padding: "16px clamp(16px,4vw,48px) 28px",
+          animation: "fadeIn 0.2s ease",
+        }}>
+          {navLinks.map(l => (
+            <button key={l.key} onClick={() => go(l.key)} style={{
+              fontFamily: "var(--mono)", fontSize: "0.72rem", letterSpacing: "0.14em",
+              color: page === l.key ? "var(--amber)" : "var(--paper2)",
+              display: "block", width: "100%", textAlign: "left",
+              padding: "18px 0", borderBottom: "1px solid var(--border)",
+            }}>{l.label}</button>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: "20px", marginTop: "20px" }}>
+            <SocialIcons />
+            <button onClick={() => setSound(s => !s)} style={{ fontSize: "0.8rem", opacity: sound ? 1 : 0.3 }}>
+              {sound ? "🔔" : "🔕"}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SocialIcons() {
+  return (
+    <>
+      {[
+        {
+          href: SOCIALS.x, title: "X / Twitter",
+          icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.258 5.63 5.906-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        },
+        {
+          href: SOCIALS.community, title: "X Community",
+          icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        },
+        {
+          href: SOCIALS.github, title: "GitHub",
+          icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+        },
+      ].map(s => (
+        <a key={s.href} href={s.href} target="_blank" rel="noopener noreferrer" title={s.title}
+          className="nav-item" style={{ color: "var(--paper3)", display: "flex", alignItems: "center" }}>
+          {s.icon}
+        </a>
+      ))}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CA BAR
+// ─────────────────────────────────────────────────────────────────────────────
+function CABar() {
+  const [copied, copy] = useCopy(CONTRACT_ADDRESS);
+  return (
+    <div style={{
+      position: "fixed", top: "var(--nav-h)", left: 0, right: 0, zIndex: 998,
+      height: "var(--ca-h)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "var(--bg1)",
+      borderBottom: "1px solid var(--border)",
     }}>
-      <span>$CFN</span>
-      <span style={{ color: "var(--muted)", fontSize: "0.6rem" }}>|</span>
-      <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {CONTRACT_ADDRESS}
-      </span>
-      <span style={{ fontSize: "0.6rem" }}>{copied ? "✓ copied" : "⎘"}</span>
+      <button onClick={copy} style={{
+        display: "flex", alignItems: "center", gap: "10px",
+        fontFamily: "var(--mono)", fontSize: "clamp(0.5rem,1.5vw,0.58rem)",
+        letterSpacing: "0.08em",
+        color: copied ? "var(--amber)" : "var(--paper3)",
+        transition: "color 0.3s",
+        maxWidth: "calc(100vw - 32px)",
+      }}>
+        <span style={{
+          background: "rgba(200,146,42,0.12)", color: "var(--amber)",
+          padding: "2px 8px", borderRadius: "2px",
+          fontSize: "clamp(0.48rem,1.4vw,0.55rem)", letterSpacing: "0.12em", flexShrink: 0,
+        }}>$CFN</span>
+        <span style={{
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          maxWidth: "clamp(100px,40vw,340px)",
+        }}>{CONTRACT_ADDRESS}</span>
+        <span style={{ flexShrink: 0, opacity: 0.65 }}>{copied ? "✓ copied" : "⎘ copy"}</span>
+      </button>
     </div>
   );
 }
 
-// ─── NAVBAR ──────────────────────────────────────────────────────────────────
-function Navbar({ page, setPage, soundOn, toggleSound }) {
-  return (
-    <nav style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "18px 32px",
-      background: "linear-gradient(to bottom, rgba(14,14,14,0.98) 0%, rgba(14,14,14,0) 100%)",
-    }}>
-      {/* LOGO */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <img
-          src="/logo.png"
-          alt="ConfessCoin"
-          style={{ height: "32px", width: "auto", opacity: 0.92 }}
-          onError={e => { e.target.style.display = "none"; }}
-        />
-        <span
-          onClick={() => setPage("wall")}
-          style={{
-            fontFamily: "var(--serif)", fontStyle: "italic",
-            fontSize: "1.1rem", letterSpacing: "0.12em",
-            color: "var(--paper)", cursor: "pointer",
-          }}
-        >
-          CONFESS
-        </span>
-      </div>
+// ─────────────────────────────────────────────────────────────────────────────
+// REACTION BAR  — one reaction per confession, toggles, switches
+// ─────────────────────────────────────────────────────────────────────────────
+function ReactionBar({ id, reactions: serverReactions, onBurnRequest }) {
+  // Initialize from server + local session state
+  const [counts, setCounts] = useState(() => ({ ...serverReactions }));
+  const [active, setActive] = useState(() => sessionReactions.get(id) ?? null);
 
-      {/* NAV */}
-      <div style={{ display: "flex", alignItems: "center", gap: "28px", fontFamily: "var(--mono)", fontSize: "0.65rem", letterSpacing: "0.12em", color: "var(--muted)" }}>
-        <span
-          className="nav-link"
-          onClick={() => setPage("wall")}
-          style={{ color: page === "wall" ? "var(--paper)" : undefined, cursor: "pointer" }}
-        >THE WALL</span>
-        <span
-          className="nav-link"
-          onClick={() => setPage("chain")}
-          style={{ color: page === "chain" ? "var(--amber)" : undefined, cursor: "pointer" }}
-        >⛓ ON-CHAIN</span>
-        <span
-          className="nav-link"
-          onClick={() => setPage("lore")}
-          style={{ color: page === "lore" ? "var(--paper)" : undefined, cursor: "pointer" }}
-        >WHY THIS EXISTS</span>
-
-        <div style={{ width: "1px", height: "14px", background: "var(--muted)" }} />
-
-        {/* Social */}
-        <a href={SOCIAL.x} target="_blank" rel="noopener noreferrer" className="nav-link" title="X">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.258 5.63 5.906-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-          </svg>
-        </a>
-        <a href={SOCIAL.xCommunity} target="_blank" rel="noopener noreferrer" className="nav-link" title="X Community">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/>
-          </svg>
-        </a>
-        <a href={SOCIAL.github} target="_blank" rel="noopener noreferrer" className="nav-link" title="GitHub">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/>
-          </svg>
-        </a>
-
-        <div style={{ width: "1px", height: "14px", background: "var(--muted)" }} />
-
-        {/* Sound toggle */}
-        <span
-          onClick={toggleSound}
-          title={soundOn ? "Silence" : "Ambient sound"}
-          style={{ cursor: "pointer", fontSize: "0.8rem", opacity: soundOn ? 1 : 0.4, transition: "opacity 0.3s" }}
-        >🔔</span>
-      </div>
-    </nav>
-  );
-}
-
-// ─── REACTION BAR ────────────────────────────────────────────────────────────
-function ReactionBar({ confessionId, reactions, onBurnPrompt }) {
-  const [reacted, setReacted] = useState({});
+  // Sync when server reactions update (other users reacting live)
+  useEffect(() => {
+    const prev = active;
+    setCounts(sr => {
+      const merged = { ...sr };
+      // Keep local delta: if we've reacted, adjust server count
+      for (const key of Object.keys(sr)) {
+        merged[key] = serverReactions[key] ?? 0;
+      }
+      return merged;
+    });
+  }, [serverReactions]); // eslint-disable-line
 
   const handleReact = async (key) => {
-    if (reacted[key]) return;
-    if (key === "fire") { onBurnPrompt(confessionId); return; }
+    if (key === "fire") { onBurnRequest(id); return; }
+
+    const prev = active;
+    const next = prev === key ? null : key;
+
+    // Optimistic: compute new counts
+    const updated = { ...counts };
+    if (prev) updated[prev] = Math.max(0, (updated[prev] ?? 0) - 1);
+    if (next) updated[next] = (updated[next] ?? 0) + 1;
+
+    setActive(next);
+    setCounts(updated);
+    sessionReactions.set(id, next);
+
     try {
-      const ref = doc(db, "confessions", confessionId);
-      const upd = {};
-      upd[`reactions.${key}`] = (reactions[key] || 0) + 1;
-      await updateDoc(ref, upd);
-      setReacted(r => ({ ...r, [key]: true }));
-    } catch {}
+      const ref = doc(db, "confessions", id);
+      const patch = {};
+      if (prev) patch[`reactions.${prev}`] = Math.max(0, (serverReactions[prev] ?? 0) - 1);
+      if (next) patch[`reactions.${next}`] = (serverReactions[next] ?? 0) + 1;
+      if (Object.keys(patch).length) await updateDoc(ref, patch);
+    } catch (e) {
+      console.error(e);
+      // Rollback
+      setActive(prev);
+      setCounts({ ...serverReactions });
+    }
   };
 
   return (
-    <div style={{ display: "flex", gap: "18px", marginTop: "14px", flexWrap: "wrap" }}>
-      {REACTIONS.map(r => (
-        <button
-          key={r.key}
-          onClick={() => handleReact(r.key)}
-          title={r.label}
-          style={{
-            display: "flex", alignItems: "center", gap: "5px",
-            fontFamily: "var(--mono)", fontSize: "0.62rem",
-            color: reacted[r.key] ? "var(--amber)" : "var(--muted)",
-            opacity: reacted[r.key] ? 1 : 0.7,
-            transition: "all 0.2s",
-            padding: "2px 0",
-          }}
-        >
-          <span style={{ fontSize: "0.85rem" }}>{r.symbol}</span>
-          <span>{reactions[r.key] || 0}</span>
-        </button>
-      ))}
+    <div style={{
+      display: "flex", gap: "8px", marginTop: "18px", flexWrap: "wrap",
+    }}>
+      {REACTIONS.map(r => {
+        const isActive = active === r.key;
+        const count = counts[r.key] ?? 0;
+        return (
+          <button key={r.key} onClick={() => handleReact(r.key)} title={r.label}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              fontFamily: "var(--mono)", fontSize: "0.58rem", letterSpacing: "0.04em",
+              color: isActive ? "var(--amber)" : "var(--paper3)",
+              padding: "6px 11px",
+              background: isActive ? "rgba(200,146,42,0.1)" : "rgba(255,255,255,0.02)",
+              border: `1px solid ${isActive ? "var(--amber-dim)" : "var(--border)"}`,
+              borderRadius: "20px",
+              transition: "all 0.18s",
+              userSelect: "none",
+            }}
+            onMouseEnter={e => {
+              if (!isActive) {
+                e.currentTarget.style.borderColor = "var(--border2)";
+                e.currentTarget.style.color = "var(--paper2)";
+              }
+            }}
+            onMouseLeave={e => {
+              if (!isActive) {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--paper3)";
+              }
+            }}
+          >
+            <span style={{ fontSize: "0.88rem", lineHeight: 1 }}>{r.emoji}</span>
+            {count > 0 && <span>{count}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-// ─── CONFESSION CARD ─────────────────────────────────────────────────────────
-function ConfessionCard({ data, index, onBurnPrompt }) {
-  const isNew = data.timestamp && (Date.now() - data.timestamp.toMillis()) < 10000;
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFESSION CARD
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfessionCard({ data, idx, onBurnRequest }) {
+  const catInfo = CATEGORIES.find(c => c.key === data.category);
+  const isNew = data.timestamp && (Date.now() - data.timestamp.toMillis()) < 20000;
 
   return (
-    <div
-      className="fade-in"
-      style={{
-        animationDelay: `${index * 0.06}s`,
-        padding: "28px 0",
-        borderBottom: "1px solid rgba(255,255,255,0.04)",
-        maxWidth: "680px",
-      }}
-    >
-      <p style={{
-        fontFamily: "var(--serif)",
-        fontStyle: "italic",
-        fontSize: sizeStyle(data.size),
-        lineHeight: 1.75,
-        color: "var(--paper)",
-        letterSpacing: "0.01em",
-      }}>
-        {data.text}
-      </p>
-
-      <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "14px" }}>
-        <span style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)" }}>
-          {timeAgo(data.timestamp)}
-        </span>
-        {data.category && (
-          <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber-dim)" }}>
-            {CATEGORIES.find(c => c.key === data.category)?.symbol}
+    <article style={{
+      padding: "clamp(24px,4vw,44px) 0",
+      borderBottom: "1px solid var(--border)",
+      animation: `cardIn 0.55s ${Math.min(idx * 0.04, 0.4)}s ease both`,
+    }}>
+      {/* Header row: category + live badge */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", flexWrap: "wrap" }}>
+        {catInfo && (
+          <span style={{
+            fontFamily: "var(--mono)", fontSize: "0.52rem", letterSpacing: "0.1em",
+            color: "var(--paper3)",
+            background: "var(--bg3)", padding: "3px 9px",
+            border: "1px solid var(--border)", borderRadius: "2px",
+          }}>{catInfo.emoji} {catInfo.label.toUpperCase()}</span>
+        )}
+        {isNew && (
+          <span style={{
+            display: "flex", alignItems: "center", gap: "5px",
+            fontFamily: "var(--mono)", fontSize: "0.52rem", letterSpacing: "0.12em",
+            color: "var(--amber)",
+          }}>
+            <span className="pulse" style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--amber)", display: "inline-block" }} />
+            LIVE
           </span>
         )}
         {data.burned && data.txHash && (
-          <a
-            href={`https://solscan.io/tx/${data.txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="View on Solana"
+          <a href={`https://solscan.io/tx/${data.txHash}`}
+            target="_blank" rel="noopener noreferrer"
             className="flicker"
-            style={{ fontSize: "0.85rem", opacity: 0.85 }}
-          >🔥</a>
-        )}
-        {isNew && (
-          <span style={{ fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--amber)", opacity: 0.7 }}>
-            ● live
-          </span>
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "5px",
+              fontFamily: "var(--mono)", fontSize: "0.52rem", letterSpacing: "0.08em",
+              color: "var(--amber)",
+              border: "1px solid var(--amber-dim)", padding: "3px 9px", borderRadius: "2px",
+            }}>
+            🔥 on-chain
+          </a>
         )}
       </div>
 
-      <ReactionBar
-        confessionId={data.id}
-        reactions={data.reactions || {}}
-        onBurnPrompt={onBurnPrompt}
-      />
-    </div>
+      {/* Text */}
+      <p style={{
+        fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+        fontSize: sizeToFontSize(data.size),
+        lineHeight: sizeToLineHeight(data.size),
+        color: "var(--paper)",
+        letterSpacing: "0.01em",
+      }}>{data.text}</p>
+
+      {/* Timestamp */}
+      <p style={{
+        fontFamily: "var(--mono)", fontSize: "0.55rem", letterSpacing: "0.07em",
+        color: "var(--paper3)", marginTop: "12px",
+      }}>{timeAgo(data.timestamp)}</p>
+
+      <ReactionBar id={data.id} reactions={data.reactions || {}} onBurnRequest={onBurnRequest} />
+    </article>
   );
 }
 
-// ─── CONFESS MODAL ───────────────────────────────────────────────────────────
-function ConfessModal({ onClose, onSubmitted }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFESS MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfessModal({ onClose, onDone }) {
   const [text, setText] = useState("");
-  const [size, setSize] = useState(50);
+  const [sizeVal, setSizeVal] = useState(50);
   const [category, setCategory] = useState("");
-  const [burnForever, setBurnForever] = useState(false);
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [phase, setPhase] = useState("write"); // write | submitting | done | burning
-  const [showCategories, setShowCategories] = useState(false);
-  const textareaRef = useRef(null);
+  const [showCats, setShowCats] = useState(false);
+  const [burnMode, setBurnMode] = useState(false);
+  const [wallet, setWallet] = useState(null);
+  const [phase, setPhase] = useState("compose");
+  // compose | submitting | burning | done
+
+  const textRef = useRef(null);
+  const size = sizeVal < 34 ? "whisper" : sizeVal < 67 ? "normal" : "scream";
 
   useEffect(() => {
-    if (textareaRef.current) textareaRef.current.focus();
+    const t = setTimeout(() => textRef.current?.focus(), 100);
+    document.body.style.overflow = "hidden";
+    return () => { clearTimeout(t); document.body.style.overflow = ""; };
   }, []);
 
-  const sizeLabel = size < 33 ? "whisper" : size < 66 ? "normal" : "scream";
+  useEffect(() => {
+    const fn = e => { if (e.key === "Escape" && phase === "compose") onClose(); };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onClose, phase]);
 
   const connectWallet = async () => {
     try {
       const { solana } = window;
-      if (!solana?.isPhantom) {
-        alert("Phantom wallet not found. Please install it from phantom.app");
-        return;
-      }
-      const resp = await solana.connect();
-      setWalletAddress(resp.publicKey.toString());
-    } catch {}
+      if (!solana?.isPhantom) { window.open("https://phantom.app", "_blank"); return; }
+      const res = await solana.connect();
+      setWallet(res.publicKey.toString());
+    } catch (e) {
+      console.error("Wallet connect failed:", e);
+    }
   };
 
-  const handleSubmit = async () => {
-    if (!text.trim() || text.trim().length < 3) return;
+  const handleBurnToggle = async () => {
+    const newState = !burnMode;
+    setBurnMode(newState);
+    if (newState && !wallet) await connectWallet();
+  };
 
+  const submit = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length < 3) return;
     setPhase("submitting");
 
     let txHash = null;
 
-    if (burnForever) {
-      // Solana burn flow
+    if (burnMode && wallet) {
+      setPhase("burning");
       try {
-        const { solana, solanaWeb3 } = window;
-        if (!solana?.isPhantom) throw new Error("No phantom");
+        const w3 = window.solanaWeb3;
+        if (!w3) throw new Error("Solana web3 not loaded");
+        const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionInstruction } = w3;
 
-        // We encode the confession as a memo instruction
-        const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = solanaWeb3;
-        const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
-        const pubkey = new PublicKey(walletAddress);
+        const { solana } = window;
+        if (!solana?.isPhantom) throw new Error("No Phantom");
+
+        const conn = new Connection("https://api.mainnet-beta.solana.com", { commitment: "confirmed" });
+        const payer = new PublicKey(wallet);
+        const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+
+        const tx = new Transaction({ recentBlockhash: blockhash, feePayer: payer });
+
+        // Memo: confession permanently written on-chain
         const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
-
-        const { blockhash } = await connection.getLatestBlockhash();
-        const tx = new Transaction({ recentBlockhash: blockhash, feePayer: pubkey });
-
-        // Add memo
-        const memoIx = {
-          keys: [],
+        const memoData = Buffer.from(
+          JSON.stringify({ app: "ConfessCoin", ticker: "$CFN", confession: trimmed.slice(0, 400) }),
+          "utf8"
+        );
+        tx.add(new TransactionInstruction({
+          keys: [{ pubkey: payer, isSigner: true, isWritable: false }],
           programId: MEMO_PROGRAM,
-          data: Buffer.from(text.trim().slice(0, 566)),
-        };
-        tx.add(memoIx);
+          data: memoData,
+        }));
 
-        // Also send 0.01 SOL to self (proof of burn)
+        // 0.01 SOL to incinerator (permanent proof of burn)
+        const INCINERATOR = new PublicKey("1nc1nerator11111111111111111111111111111111");
         tx.add(SystemProgram.transfer({
-          fromPubkey: pubkey,
-          toPubkey: pubkey,
-          lamports: BURN_AMOUNT_SOL * LAMPORTS_PER_SOL,
+          fromPubkey: payer,
+          toPubkey: INCINERATOR,
+          lamports: Math.round(BURN_SOL * LAMPORTS_PER_SOL),
         }));
 
         const signed = await solana.signTransaction(tx);
-        txHash = await connection.sendRawTransaction(signed.serialize());
-        setPhase("burning");
-        await connection.confirmTransaction(txHash, "confirmed");
+        txHash = await conn.sendRawTransaction(signed.serialize(), { skipPreflight: false });
+        await conn.confirmTransaction({ signature: txHash, blockhash, lastValidBlockHeight }, "confirmed");
       } catch (e) {
-        console.error("Burn failed:", e);
-        setBurnForever(false);
+        console.error("Burn error:", e);
         txHash = null;
+        setBurnMode(false);
       }
     }
 
-    // Save to Firebase
+    // Save to Firestore
     try {
       await addDoc(collection(db, "confessions"), {
-        text: text.trim(),
-        size: sizeLabel,
+        text: trimmed,
+        size,
         category: category || null,
-        burned: burnForever && !!txHash,
+        burned: burnMode && !!txHash,
         txHash: txHash || null,
         timestamp: serverTimestamp(),
         reactions: { candle: 0, heavy: 0, eye: 0, fire: 0, grave: 0 },
       });
-    } catch {}
+    } catch (e) {
+      console.error("Firestore error:", e);
+    }
 
     setPhase("done");
-    setTimeout(() => {
-      onSubmitted();
-    }, 3000);
+    setTimeout(() => onDone(), 3500);
   };
 
-  // Phase: burning animation
+  // ── BURNING PHASE ──
   if (phase === "burning") {
     return (
-      <div style={overlayStyle}>
+      <Overlay>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "24px", animation: "flicker 0.5s ease infinite" }}>🔥</div>
-          <p style={{ fontFamily: "var(--mono)", fontSize: "0.75rem", color: "var(--amber)", letterSpacing: "0.1em" }}>
-            writing to the chain...
+          <div className="flicker" style={{ fontSize: "3.5rem", marginBottom: "28px" }}>🔥</div>
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", letterSpacing: "0.18em", color: "var(--amber)", marginBottom: "14px" }}>
+            WRITING TO THE SOLANA CHAIN
           </p>
-          <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", marginTop: "12px" }}>
-            this will take a moment. it lives forever after this.
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--paper3)", lineHeight: 1.8 }}>
+            Permanent. Immutable. Nobody can delete this.<br />
+            Please wait.
           </p>
+          <div style={{ width: "24px", height: "24px", border: "1px solid var(--amber)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "32px auto 0" }} />
         </div>
-      </div>
+      </Overlay>
     );
   }
 
-  // Phase: done
+  // ── DONE PHASE ──
   if (phase === "done") {
     return (
-      <div style={overlayStyle}>
-        <div className="fade-in" style={{ textAlign: "center" }}>
-          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.4rem", color: "var(--paper)", marginBottom: "16px" }}>
-            it's gone.
-          </p>
-          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.1rem", color: "var(--muted)" }}>
-            you're lighter now.
-          </p>
+      <Overlay>
+        <div style={{ textAlign: "center", animation: "slideUp 0.7s ease" }}>
+          <p style={{
+            fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+            fontSize: "clamp(1.8rem,6vw,2.6rem)", color: "var(--paper)",
+            marginBottom: "16px", lineHeight: 1.4,
+          }}>it's gone.</p>
+          <p style={{
+            fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+            fontSize: "clamp(1rem,3vw,1.4rem)", color: "var(--paper3)",
+            marginBottom: "36px",
+          }}>you're lighter now.</p>
+          <span className="flicker" style={{ fontSize: "2rem" }}>🕯️</span>
         </div>
-      </div>
+      </Overlay>
     );
   }
 
+  // ── COMPOSE PHASE ──
   return (
-    <div style={{ ...overlayStyle, animation: "modalIn 0.4s ease" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <Overlay onClickOutside={phase === "compose" ? onClose : undefined}>
       <div style={{
-        width: "100%", maxWidth: "680px", padding: "0 24px",
-        display: "flex", flexDirection: "column", gap: "28px",
+        width: "100%", maxWidth: "620px",
+        animation: "slideUp 0.4s ease",
+        position: "relative",
+        padding: "0 clamp(0px,1vw,8px)",
       }}>
-        {/* Textarea */}
-        <div style={{ position: "relative" }}>
+        {/* Close btn */}
+        <button onClick={onClose} style={{
+          position: "absolute", top: "-8px", right: "clamp(-8px,0px,0px)",
+          fontFamily: "var(--mono)", fontSize: "0.58rem", letterSpacing: "0.12em",
+          color: "var(--paper3)", display: "flex", alignItems: "center", gap: "6px",
+          padding: "6px",
+        }}>
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          ESC
+        </button>
+
+        {/* Label */}
+        <p style={{
+          fontFamily: "var(--mono)", fontSize: "0.56rem", letterSpacing: "0.18em",
+          color: "var(--paper3)", marginBottom: "clamp(20px,4vw,32px)",
+          paddingTop: "clamp(28px,4vw,0px)",
+        }}>SAY THE THING YOU CAN'T SAY ANYWHERE ELSE</p>
+
+        {/* Textarea area */}
+        <div style={{ position: "relative", marginBottom: "clamp(24px,4vw,36px)" }}>
           <textarea
-            ref={textareaRef}
+            ref={textRef}
             value={text}
             onChange={e => setText(e.target.value)}
             maxLength={1200}
+            rows={window.innerWidth < 640 ? 5 : 7}
             style={{
-              width: "100%", minHeight: "200px",
-              background: "transparent", border: "none",
+              width: "100%",
+              background: "transparent",
+              border: "none",
+              borderBottom: "1px solid var(--border2)",
               color: "var(--paper)",
-              fontFamily: "var(--serif)", fontStyle: "italic",
-              fontSize: sizeStyle(sizeLabel),
-              lineHeight: 1.8, resize: "none",
+              fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+              fontSize: sizeToFontSize(size),
+              lineHeight: sizeToLineHeight(size),
+              resize: "none",
               caretColor: "var(--amber)",
+              paddingBottom: "14px",
+              outline: "none",
+              transition: "font-size 0.2s",
             }}
           />
           {!text && (
             <span className="blink" style={{
               position: "absolute", top: 0, left: 0,
-              color: "var(--amber)", fontSize: sizeStyle(sizeLabel),
-              fontFamily: "var(--serif)", pointerEvents: "none",
+              color: "var(--amber)", fontFamily: "var(--serif)",
+              fontSize: sizeToFontSize(size), lineHeight: sizeToLineHeight(size),
+              pointerEvents: "none", userSelect: "none",
             }}>|</span>
           )}
-          <div style={{
-            position: "absolute", bottom: "-20px", right: 0,
-            fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)",
-          }}>{text.length}/1200</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.52rem", color: "var(--paper3)" }}>
+              {text.length} / 1200
+            </span>
+            <span style={{
+              fontFamily: "var(--mono)", fontSize: "0.52rem",
+              color: size === "scream" ? "var(--amber)" : size === "whisper" ? "var(--paper3)" : "var(--paper3)",
+              letterSpacing: "0.1em",
+            }}>
+              {size.toUpperCase()}
+            </span>
+          </div>
         </div>
 
-        {/* Size slider */}
-        <div style={{ marginTop: "8px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)" }}>whisper</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber)", letterSpacing: "0.05em" }}>{sizeLabel}</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--muted)" }}>scream</span>
+        {/* Slider */}
+        <div style={{ marginBottom: "clamp(20px,4vw,30px)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--paper3)", letterSpacing: "0.09em" }}>whisper</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--paper3)", letterSpacing: "0.09em" }}>scream</span>
           </div>
           <input
-            type="range" min="0" max="100" value={size}
-            onChange={e => setSize(Number(e.target.value))}
+            type="range" min="0" max="100" value={sizeVal}
+            onChange={e => setSizeVal(+e.target.value)}
             style={{
-              width: "100%", accentColor: "var(--amber)",
-              background: "transparent", height: "2px",
+              background: `linear-gradient(to right, var(--amber) ${sizeVal}%, var(--border2) ${sizeVal}%)`,
             }}
           />
         </div>
 
-        {/* Category picker */}
-        <div>
-          <button
-            onClick={() => setShowCategories(s => !s)}
-            style={{
-              fontFamily: "var(--mono)", fontSize: "0.6rem",
-              color: category ? "var(--amber)" : "var(--muted)",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {category ? `${CATEGORIES.find(c => c.key === category)?.symbol} ${CATEGORIES.find(c => c.key === category)?.label}` : "▸ categorize (optional)"}
+        {/* Category */}
+        <div style={{ marginBottom: "clamp(20px,4vw,28px)" }}>
+          <button onClick={() => setShowCats(s => !s)} style={{
+            fontFamily: "var(--mono)", fontSize: "0.57rem", letterSpacing: "0.1em",
+            color: category ? "var(--amber)" : "var(--paper3)",
+            display: "flex", alignItems: "center", gap: "8px",
+          }}>
+            <span style={{
+              display: "inline-block",
+              transform: showCats ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 0.2s", fontSize: "0.65rem",
+            }}>▸</span>
+            {category
+              ? `${CATEGORIES.find(c => c.key === category)?.emoji}  ${CATEGORIES.find(c => c.key === category)?.label}`
+              : "CATEGORIZE (OPTIONAL)"
+            }
           </button>
-          {showCategories && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "12px" }}>
+
+          {showCats && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px", animation: "fadeIn 0.2s ease" }}>
               {CATEGORIES.map(cat => (
-                <button
-                  key={cat.key}
-                  onClick={() => { setCategory(cat.key); setShowCategories(false); }}
+                <button key={cat.key}
+                  onClick={() => { setCategory(c => c === cat.key ? "" : cat.key); setShowCats(false); }}
                   style={{
-                    fontFamily: "var(--mono)", fontSize: "0.6rem",
-                    color: category === cat.key ? "var(--amber)" : "var(--muted)",
-                    padding: "5px 10px",
-                    border: `1px solid ${category === cat.key ? "var(--amber)" : "var(--muted)"}`,
-                    borderRadius: "3px", letterSpacing: "0.05em",
-                    transition: "all 0.2s",
-                  }}
-                >{cat.symbol} {cat.label}</button>
+                    fontFamily: "var(--mono)", fontSize: "0.55rem", letterSpacing: "0.05em",
+                    color: category === cat.key ? "var(--amber)" : "var(--paper3)",
+                    padding: "5px 12px",
+                    border: `1px solid ${category === cat.key ? "var(--amber-dim)" : "var(--border)"}`,
+                    borderRadius: "var(--radius)",
+                    background: category === cat.key ? "rgba(200,146,42,0.08)" : "var(--bg2)",
+                    transition: "all 0.15s",
+                  }}>
+                  {cat.emoji} {cat.label}
+                </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Burn forever */}
+        {/* Burn toggle */}
         <div style={{
-          padding: "18px 20px",
-          border: burnForever ? "1px solid var(--amber)" : "1px solid var(--muted)",
-          borderRadius: "4px", transition: "border-color 0.3s",
+          marginBottom: "clamp(24px,4vw,36px)",
+          padding: "clamp(14px,3vw,20px) clamp(14px,3vw,20px)",
+          border: `1px solid ${burnMode ? "var(--amber-dim)" : "var(--border)"}`,
+          borderRadius: "var(--radius)",
+          background: burnMode ? "rgba(200,146,42,0.03)" : "rgba(255,255,255,0.01)",
+          transition: "all 0.3s",
+          animation: burnMode ? "burnPulse 4s ease infinite" : "none",
         }}>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "14px", cursor: "pointer" }}>
-            <input
-              type="checkbox" checked={burnForever}
-              onChange={e => {
-                setBurnForever(e.target.checked);
-                if (e.target.checked && !walletAddress) connectWallet();
-              }}
-              style={{ accentColor: "var(--amber)", marginTop: "2px", width: "14px", height: "14px", flexShrink: 0 }}
-            />
-            <div>
-              <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "0.95rem", color: "var(--paper)" }}>
-                🔥 Burn this to chain forever
+          <div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
+            {/* Custom checkbox */}
+            <button onClick={handleBurnToggle} style={{
+              width: "18px", height: "18px", flexShrink: 0, marginTop: "3px",
+              border: `1px solid ${burnMode ? "var(--amber)" : "var(--border2)"}`,
+              borderRadius: "3px",
+              background: burnMode ? "var(--amber)" : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.2s",
+            }}>
+              {burnMode && (
+                <svg width="10" height="10" fill="none" stroke="var(--bg)" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+                fontSize: "clamp(0.9rem,2.5vw,1.05rem)", color: "var(--paper)", marginBottom: "6px",
+              }}>🔥 Burn to chain forever</p>
+              <p style={{
+                fontFamily: "var(--mono)", fontSize: "0.57rem",
+                color: "var(--paper3)", lineHeight: 1.75,
+              }}>
+                0.01 SOL · written permanently on Solana<br />
+                Immutable · no one can delete it · ever
               </p>
-              <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", marginTop: "5px", lineHeight: 1.6 }}>
-                0.01 SOL · written permanently on Solana · immutable · no one can delete it
-              </p>
-              {burnForever && walletAddress && (
-                <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--amber)", marginTop: "6px" }}>
-                  ✓ {truncate(walletAddress)}
+
+              {burnMode && !wallet && (
+                <button onClick={connectWallet} style={{
+                  marginTop: "12px",
+                  fontFamily: "var(--mono)", fontSize: "0.57rem", letterSpacing: "0.09em",
+                  color: "var(--amber)",
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 14px",
+                  border: "1px solid var(--amber-dim)",
+                  borderRadius: "var(--radius)",
+                  transition: "background 0.2s",
+                }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--amber-glow)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Connect Phantom
+                </button>
+              )}
+              {burnMode && wallet && (
+                <p style={{ fontFamily: "var(--mono)", fontSize: "0.56rem", color: "var(--amber)", marginTop: "10px" }}>
+                  ✓ {shortAddr(wallet)}
                 </p>
               )}
-              {burnForever && !walletAddress && (
-                <button
-                  onClick={connectWallet}
-                  style={{
-                    fontFamily: "var(--mono)", fontSize: "0.6rem",
-                    color: "var(--amber)", marginTop: "6px",
-                    letterSpacing: "0.05em",
-                  }}
-                >connect phantom →</button>
-              )}
             </div>
-          </label>
+          </div>
         </div>
 
         {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={!text.trim() || text.trim().length < 3 || phase === "submitting"}
+        <button onClick={submit}
+          disabled={text.trim().length < 3 || phase !== "compose"}
           style={{
-            alignSelf: "flex-start",
-            fontFamily: "var(--serif)", fontStyle: "italic",
-            fontSize: "1.1rem", letterSpacing: "0.06em",
-            color: text.trim().length >= 3 ? "var(--paper)" : "var(--muted)",
-            transition: "color 0.3s",
-            padding: "10px 0",
-            animation: text.trim().length >= 3 ? "pulseAmber 3s ease infinite" : "none",
+            width: "100%",
+            fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+            fontSize: "clamp(1.1rem,3.5vw,1.35rem)", letterSpacing: "0.04em",
+            color: text.trim().length >= 3 ? "var(--paper)" : "var(--paper3)",
+            padding: "clamp(14px,3vw,18px) 0",
+            borderTop: "1px solid var(--border)",
+            borderBottom: `1px solid ${text.trim().length >= 3 ? "var(--amber-dim)" : "var(--border)"}`,
+            textAlign: "left",
+            opacity: text.trim().length < 3 ? 0.35 : 1,
+            transition: "all 0.3s",
+            cursor: text.trim().length < 3 ? "default" : "pointer",
           }}
+          onMouseEnter={e => { if (text.trim().length >= 3) { e.currentTarget.style.color = "var(--amber)"; e.currentTarget.style.borderBottomColor = "var(--amber)"; } }}
+          onMouseLeave={e => { e.currentTarget.style.color = text.trim().length >= 3 ? "var(--paper)" : "var(--paper3)"; e.currentTarget.style.borderBottomColor = text.trim().length >= 3 ? "var(--amber-dim)" : "var(--border)"; }}
         >
-          {phase === "submitting" ? "releasing..." : "release it"}
+          {phase === "submitting" ? "releasing..." : "release it →"}
         </button>
+      </div>
+    </Overlay>
+  );
+}
 
-        {/* Close */}
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute", top: "24px", right: "32px",
-            fontFamily: "var(--mono)", fontSize: "0.65rem",
-            color: "var(--muted)", letterSpacing: "0.08em",
-          }}
-        >esc</button>
+// ─────────────────────────────────────────────────────────────────────────────
+// OVERLAY
+// ─────────────────────────────────────────────────────────────────────────────
+function Overlay({ children, onClickOutside }) {
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget && onClickOutside) onClickOutside(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 2000,
+        background: "rgba(5,5,4,0.96)",
+        backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "clamp(16px,5vw,60px) clamp(16px,4vw,48px)",
+        overflowY: "auto",
+        animation: "modalIn 0.3s ease",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: "620px", position: "relative" }}>
+        {children}
       </div>
     </div>
   );
 }
 
-const overlayStyle = {
-  position: "fixed", inset: 0, zIndex: 500,
-  background: "rgba(10,10,10,0.97)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-  animation: "modalIn 0.3s ease",
-};
-
-// ─── THE WALL PAGE ────────────────────────────────────────────────────────────
-function WallPage({ onBurnPrompt }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// WALL PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+function WallPage({ onBurnRequest }) {
   const [confessions, setConfessions] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [showFilter, setShowFilter] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [catFilter, setCatFilter] = useState("");
+  const [showCatBar, setShowCatBar] = useState(false);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "confessions"),
-      orderBy("timestamp", "desc"),
-      limit(60)
-    );
+    const q = query(collection(db, "confessions"), orderBy("timestamp", "desc"), limit(80));
     const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setConfessions(docs);
+      setConfessions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    });
+    }, err => { console.error(err); setLoading(false); });
     return unsub;
   }, []);
 
-  const filtered = activeCategory
-    ? confessions.filter(c => c.category === activeCategory)
-    : confessions;
+  const filtered = catFilter ? confessions.filter(c => c.category === catFilter) : confessions;
 
   return (
-    <div style={{ paddingTop: "96px", paddingBottom: "120px", maxWidth: "800px", margin: "0 auto", padding: "96px 32px 140px" }}>
+    <PageShell>
+      {/* Page header */}
+      <header style={{
+        paddingTop: "clamp(40px,7vw,72px)",
+        paddingBottom: "clamp(32px,5vw,52px)",
+        borderBottom: "1px solid var(--border)",
+        marginBottom: "clamp(28px,5vw,48px)",
+      }}>
+        <h1 style={{
+          fontFamily: "var(--serif-sc)", fontWeight: 300,
+          fontSize: "clamp(2.2rem,10vw,4.5rem)",
+          letterSpacing: "0.2em", color: "var(--paper)",
+          lineHeight: 1.05, marginBottom: "14px",
+        }}>The Wall</h1>
+        <p style={{
+          fontFamily: "var(--mono)", fontSize: "clamp(0.58rem,1.8vw,0.66rem)",
+          color: "var(--paper3)", letterSpacing: "0.1em", lineHeight: 1.9,
+          maxWidth: "420px",
+        }}>Anonymous. Real. No names. No accounts.<br />Just the truth, witnessed.</p>
 
-      {/* Filter bar */}
-      <div style={{ marginBottom: "48px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-        <button
-          onClick={() => setShowFilter(s => !s)}
-          style={{
-            fontFamily: "var(--mono)", fontSize: "0.6rem", letterSpacing: "0.1em",
-            color: activeCategory ? "var(--amber)" : "var(--muted)",
-          }}
-        >⊞ filter {activeCategory ? "· " + CATEGORIES.find(c => c.key === activeCategory)?.symbol : ""}</button>
+        {/* Filter row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "28px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+            <span className="pulse" style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#4caf50", display: "inline-block" }} />
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.56rem", letterSpacing: "0.1em", color: "var(--paper3)" }}>
+              {filtered.length} confession{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </div>
 
-        {activeCategory && (
-          <button
-            onClick={() => setActiveCategory(null)}
-            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em" }}
-          >× clear</button>
-        )}
+          <button onClick={() => setShowCatBar(s => !s)} style={{
+            fontFamily: "var(--mono)", fontSize: "0.56rem", letterSpacing: "0.1em",
+            color: catFilter ? "var(--amber)" : "var(--paper3)",
+            display: "flex", alignItems: "center", gap: "6px",
+            border: "1px solid var(--border)", padding: "5px 12px", borderRadius: "var(--radius)",
+            transition: "all 0.2s",
+            background: showCatBar ? "var(--bg2)" : "transparent",
+          }}>
+            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" d="M3 6h18M7 12h10M11 18h2" />
+            </svg>
+            {catFilter ? CATEGORIES.find(c => c.key === catFilter)?.label : "FILTER"}
+          </button>
 
-        {showFilter && (
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: "100%" }}>
+          {catFilter && (
+            <button onClick={() => setCatFilter("")} style={{
+              fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--paper3)", letterSpacing: "0.08em",
+            }}>× clear</button>
+          )}
+        </div>
+
+        {showCatBar && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "14px", animation: "fadeIn 0.2s ease" }}>
             {CATEGORIES.map(cat => (
-              <button
-                key={cat.key}
-                onClick={() => { setActiveCategory(cat.key); setShowFilter(false); }}
+              <button key={cat.key} onClick={() => { setCatFilter(c => c === cat.key ? "" : cat.key); setShowCatBar(false); }}
                 style={{
-                  fontFamily: "var(--mono)", fontSize: "0.58rem",
-                  color: activeCategory === cat.key ? "var(--amber)" : "var(--muted)",
-                  padding: "4px 10px",
-                  border: `1px solid ${activeCategory === cat.key ? "var(--amber)" : "var(--faint)"}`,
-                  borderRadius: "3px", letterSpacing: "0.04em",
-                  transition: "all 0.2s", background: "var(--bg2)",
-                }}
-              >{cat.symbol} {cat.label}</button>
+                  fontFamily: "var(--mono)", fontSize: "0.54rem", letterSpacing: "0.05em",
+                  color: catFilter === cat.key ? "var(--amber)" : "var(--paper3)",
+                  padding: "5px 12px",
+                  border: `1px solid ${catFilter === cat.key ? "var(--amber-dim)" : "var(--border)"}`,
+                  borderRadius: "var(--radius)",
+                  background: catFilter === cat.key ? "rgba(200,146,42,0.08)" : "var(--bg2)",
+                  transition: "all 0.15s",
+                }}>{cat.emoji} {cat.label}</button>
             ))}
           </div>
         )}
-      </div>
+      </header>
 
-      {/* Live count */}
-      <div style={{ marginBottom: "40px" }}>
-        <span style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.1em" }}>
-          {filtered.length} confession{filtered.length !== 1 ? "s" : ""} {activeCategory ? "in this category" : "on the wall"}
-        </span>
-      </div>
-
+      {/* Content */}
       {loading ? (
-        <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
-          reading the wall<span className="blink">...</span>
-        </p>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {[80, 60, 90, 50, 70].map((w, i) => (
+            <div key={i} style={{ padding: "clamp(24px,4vw,44px) 0", borderBottom: "1px solid var(--border)" }}>
+              <div className="skeleton" style={{ height: "12px", width: "60px", marginBottom: "16px" }} />
+              <div className="skeleton" style={{ height: "16px", width: `${w}%`, marginBottom: "10px" }} />
+              <div className="skeleton" style={{ height: "16px", width: `${w - 20}%` }} />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1rem", color: "var(--muted)" }}>
-          nothing here yet. be the first.
-        </p>
+        <div style={{ padding: "80px 0", textAlign: "center" }}>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.2rem", color: "var(--paper3)" }}>
+            {catFilter ? "Nothing here yet." : "The wall is empty. Be the first."}
+          </p>
+        </div>
       ) : (
         filtered.map((c, i) => (
-          <ConfessionCard key={c.id} data={c} index={i} onBurnPrompt={onBurnPrompt} />
+          <ConfessionCard key={c.id} data={c} idx={i} onBurnRequest={onBurnRequest} />
         ))
       )}
-    </div>
+
+      <div style={{ height: "100px" }} />
+    </PageShell>
   );
 }
 
-// ─── CHAIN WALL PAGE ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAIN WALL PAGE
+// ─────────────────────────────────────────────────────────────────────────────
 function ChainWallPage() {
-  const [burned, setBurned] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "confessions"),
-      where("burned", "==", true),
-      orderBy("timestamp", "desc"),
-      limit(100)
-    );
+    const q = query(collection(db, "confessions"), where("burned", "==", true), orderBy("timestamp", "desc"), limit(100));
     const unsub = onSnapshot(q, snap => {
-      setBurned(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
     return unsub;
   }, []);
 
   return (
-    <div style={{ paddingTop: "96px", paddingBottom: "140px", maxWidth: "800px", margin: "0 auto", padding: "96px 32px 140px" }}>
-      <div style={{ marginBottom: "56px" }}>
-        <h1 style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "2rem", color: "var(--paper)", marginBottom: "16px" }}>
-          The Chain Wall
-        </h1>
-        <p style={{ fontFamily: "var(--mono)", fontSize: "0.68rem", color: "var(--muted)", lineHeight: 1.8, maxWidth: "500px" }}>
-          Everything else on the internet disappears. These don't.<br />
-          Written permanently on the Solana blockchain. Immutable. Forever.
+    <PageShell>
+      <header style={{ paddingTop: "clamp(40px,7vw,72px)", paddingBottom: "clamp(32px,5vw,52px)", borderBottom: "1px solid var(--border)", marginBottom: "clamp(28px,5vw,48px)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
+          <span className="flicker" style={{ fontSize: "1.6rem" }}>🔥</span>
+          <h1 style={{ fontFamily: "var(--serif-sc)", fontWeight: 300, fontSize: "clamp(2.2rem,10vw,4.5rem)", letterSpacing: "0.2em", color: "var(--paper)", lineHeight: 1.05 }}>
+            On-Chain
+          </h1>
+        </div>
+        <p style={{ fontFamily: "var(--mono)", fontSize: "clamp(0.58rem,1.8vw,0.66rem)", color: "var(--paper3)", letterSpacing: "0.1em", lineHeight: 1.9, maxWidth: "480px" }}>
+          These confessions are permanent.<br />
+          Written on Solana. No one can delete them. Ever.
         </p>
-        <div style={{ marginTop: "20px", width: "60px", height: "1px", background: "var(--amber-dim)" }} />
-      </div>
+        <div style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ width: "28px", height: "1px", background: "var(--amber-dim)" }} />
+          <span style={{ fontFamily: "var(--mono)", fontSize: "0.56rem", color: "var(--amber)", letterSpacing: "0.14em" }}>
+            {loading ? "—" : items.length} PERMANENT RECORD{items.length !== 1 ? "S" : ""}
+          </span>
+        </div>
+      </header>
 
       {loading ? (
-        <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
-          reading the chain<span className="blink">...</span>
+        <p style={{ fontFamily: "var(--mono)", fontSize: "0.63rem", color: "var(--paper3)" }}>
+          reading the chain<span className="blink">…</span>
         </p>
-      ) : burned.length === 0 ? (
-        <div>
-          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1rem", color: "var(--muted)" }}>
-            No confessions have been burned yet.
-          </p>
-          <p style={{ fontFamily: "var(--mono)", fontSize: "0.65rem", color: "var(--muted)", marginTop: "12px" }}>
-            Be the first to write something that lasts.
-          </p>
+      ) : items.length === 0 ? (
+        <div style={{ padding: "80px 0" }}>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "1.2rem", color: "var(--paper3)", marginBottom: "12px" }}>Nothing burned yet.</p>
+          <p style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--paper3)", lineHeight: 1.8 }}>Be the first to write something that outlasts you.</p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-          {burned.map((c, i) => (
-            <div
-              key={c.id}
-              className="fade-in"
-              style={{
-                animationDelay: `${i * 0.08}s`,
-                padding: "32px 0",
-                borderBottom: "1px solid rgba(200,146,42,0.12)",
-              }}
-            >
-              <p style={{
-                fontFamily: "var(--serif)", fontStyle: "italic",
-                fontSize: sizeStyle(c.size),
-                color: "var(--paper)", lineHeight: 1.8,
-                opacity: 0.9,
-              }}>{c.text}</p>
+        items.map((item, i) => (
+          <div key={item.id} style={{
+            padding: "clamp(24px,4vw,44px) 0",
+            borderBottom: "1px solid rgba(200,146,42,0.07)",
+            animation: `cardIn 0.55s ${Math.min(i * 0.04, 0.4)}s ease both`,
+            position: "relative",
+          }}>
+            <span style={{
+              position: "absolute", top: "clamp(24px,4vw,44px)", right: 0,
+              fontFamily: "var(--mono)", fontSize: "0.5rem", letterSpacing: "0.16em",
+              color: "var(--amber-dim)",
+            }}>PERMANENT</span>
 
-              <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-                <span style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--amber-dim)" }}>
-                  {timeAgo(c.timestamp)}
-                </span>
-                {c.txHash && (
-                  <a
-                    href={`https://solscan.io/tx/${c.txHash}`}
-                    target="_blank" rel="noopener noreferrer"
-                    style={{
-                      fontFamily: "var(--mono)", fontSize: "0.58rem",
-                      color: "var(--amber)", letterSpacing: "0.05em",
-                      textDecoration: "none",
-                    }}
-                  >🔥 {truncate(c.txHash)} →</a>
-                )}
-              </div>
+            <p style={{
+              fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+              fontSize: sizeToFontSize(item.size),
+              lineHeight: sizeToLineHeight(item.size),
+              color: "rgba(237,232,220,0.84)",
+              paddingRight: "72px",
+            }}>{item.text}</p>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "14px", marginTop: "16px", flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--mono)", fontSize: "0.55rem", color: "var(--paper3)" }}>{timeAgo(item.timestamp)}</span>
+              {item.txHash && (
+                <a href={`https://solscan.io/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "6px",
+                    fontFamily: "var(--mono)", fontSize: "0.55rem", letterSpacing: "0.07em",
+                    color: "var(--amber)",
+                    border: "1px solid var(--amber-dim)", padding: "3px 10px", borderRadius: "2px",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--amber-glow)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <span className="flicker">🔥</span>
+                  {shortAddr(item.txHash)}
+                  <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                  </svg>
+                </a>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+      <div style={{ height: "80px" }} />
+    </PageShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LORE PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+function LorePage() {
+  const [copied, copy] = useCopy(CONTRACT_ADDRESS);
+  const [hovered, setHovered] = useState(null);
+
+  const lore = [
+    { n: "01", body: "In 2014, someone built ConfessionCoin. They let people write their sins on the Bitcoin blockchain. It died. Nobody built it again. Until now." },
+    { n: "02", body: "Every platform you've ever used was designed to make you more visible. More legible. More monetizable. This one is designed to do the opposite." },
+    { n: "03", body: "You are no one here. Your confession is everything. No metrics. No clout. No persona. Just the thing itself, witnessed by strangers who will never know your name." },
+    { n: "04", body: "The blockchain part isn't a gimmick. When something lives on-chain, it can't be deleted by a company, a moderator, a moment of regret, or a court order. Some truths deserve to last." },
+    { n: "05", body: "We're not building a community. We're building a wall. A very old, very dark, very honest wall. Come and write on it." },
+  ];
+
+  return (
+    <PageShell>
+      <div style={{ paddingTop: "clamp(40px,7vw,72px)" }}>
+        <p style={{ fontFamily: "var(--mono)", fontSize: "clamp(0.55rem,1.6vw,0.63rem)", letterSpacing: "0.22em", color: "var(--paper3)", marginBottom: "clamp(40px,6vw,64px)" }}>
+          WHY THIS EXISTS
+        </p>
+
+        {lore.map((item, i) => (
+          <div key={i}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "clamp(28px,5vw,52px) 1fr",
+              gap: "clamp(16px,3vw,32px)",
+              padding: "clamp(24px,4vw,44px) 0",
+              borderBottom: "1px solid var(--border)",
+              animation: `fadeUp 0.7s ${i * 0.1}s ease both`,
+              cursor: "default",
+            }}>
+            <span style={{
+              fontFamily: "var(--mono)", fontSize: "0.58rem", letterSpacing: "0.1em",
+              color: hovered === i ? "var(--amber)" : "var(--paper3)",
+              paddingTop: "5px", transition: "color 0.25s", userSelect: "none",
+            }}>{item.n}</span>
+            <p style={{
+              fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 300,
+              fontSize: "clamp(0.98rem,2.5vw,1.18rem)", lineHeight: 1.88,
+              color: hovered === i ? "var(--paper)" : "rgba(237,232,220,0.68)",
+              transition: "color 0.25s",
+            }}>{item.body}</p>
+          </div>
+        ))}
+
+        {/* Info grid */}
+        <div style={{
+          marginTop: "clamp(40px,7vw,72px)",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius)",
+          overflow: "hidden",
+          gap: "1px",
+          background: "var(--border)",
+        }}>
+          {[
+            {
+              label: "TOKEN",
+              body: (
+                <div>
+                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", letterSpacing: "0.12em", color: "var(--amber)", marginBottom: "10px" }}>$CFN</p>
+                  <button onClick={copy} style={{
+                    fontFamily: "var(--mono)", fontSize: "0.55rem", letterSpacing: "0.06em",
+                    color: copied ? "var(--amber)" : "var(--paper3)",
+                    display: "flex", alignItems: "center", gap: "7px",
+                    transition: "color 0.2s",
+                  }}>
+                    <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {CONTRACT_ADDRESS}
+                    </span>
+                    <span style={{ flexShrink: 0 }}>{copied ? "✓" : "⎘"}</span>
+                  </button>
+                </div>
+              )
+            },
+            {
+              label: "NETWORK",
+              body: (
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: "0.63rem", color: "var(--paper2)" }}>Solana</span>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: "0.57rem", color: "var(--paper3)", lineHeight: 1.7 }}>Burn fee: 0.01 SOL<br />Wallet: Phantom</span>
+                </div>
+              )
+            },
+            {
+              label: "LINKS",
+              body: (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {[
+                    { href: SOCIALS.x, label: "Twitter / X" },
+                    { href: SOCIALS.community, label: "X Community" },
+                    { href: SOCIALS.github, label: "GitHub (Original)" },
+                  ].map(s => (
+                    <a key={s.href} href={s.href} target="_blank" rel="noopener noreferrer"
+                      className="nav-item"
+                      style={{ fontFamily: "var(--mono)", fontSize: "0.58rem", color: "var(--paper3)", letterSpacing: "0.07em", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                      {s.label}
+                      <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                      </svg>
+                    </a>
+                  ))}
+                </div>
+              )
+            },
+          ].map(block => (
+            <div key={block.label} style={{ background: "var(--bg1)", padding: "clamp(18px,3vw,26px)" }}>
+              <p style={{ fontFamily: "var(--mono)", fontSize: "0.5rem", letterSpacing: "0.18em", color: "var(--paper3)", marginBottom: "14px", opacity: 0.7 }}>
+                {block.label}
+              </p>
+              {block.body}
             </div>
           ))}
         </div>
-      )}
-    </div>
+
+        <div style={{ height: "clamp(60px,10vw,100px)" }} />
+      </div>
+    </PageShell>
   );
 }
 
-// ─── LORE PAGE ────────────────────────────────────────────────────────────────
-function LorePage() {
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE SHELL
+// ─────────────────────────────────────────────────────────────────────────────
+function PageShell({ children }) {
   return (
-    <div style={{ paddingTop: "120px", paddingBottom: "160px", maxWidth: "600px", margin: "0 auto", padding: "120px 32px 160px" }}>
-      <h1 style={{
-        fontFamily: "var(--serif)", fontStyle: "italic",
-        fontSize: "1.6rem", color: "var(--paper)",
-        marginBottom: "52px", letterSpacing: "0.04em",
-      }}>
-        Why This Exists
-      </h1>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-        {[
-          "In 2014, someone built ConfessionCoin. They let people write their sins on the Bitcoin blockchain. It died. Nobody built it again. Until now.",
-          "The internet never gave people a real place to say the thing. Not to perform it. Not to build an audience with it. Not to be brave about it. Just to say it — and have it witnessed by strangers who will never know who you are.",
-          "Every platform you've ever used was designed to make you more visible. More legible. More monetizable. This one is designed to do the opposite. You are no one here. Your confession is everything.",
-          "The blockchain part isn't a gimmick. It's a promise. When something is written on-chain, it can't be taken down by a company, a government, a moderator, or a moment of regret. Some things deserve to last. Some things need to last.",
-          "We're not building a community. We're building a wall. A very old, very dark, very honest wall. Come and write on it.",
-        ].map((para, i) => (
-          <p key={i} className="fade-in" style={{
-            animationDelay: `${i * 0.2}s`,
-            fontFamily: "var(--serif)", fontStyle: i % 2 === 0 ? "italic" : "normal",
-            fontSize: i === 0 ? "1.05rem" : "0.95rem",
-            lineHeight: 1.9,
-            color: i === 0 ? "var(--paper)" : "rgba(240,235,224,0.7)",
-            paddingLeft: i === 0 ? 0 : "20px",
-            borderLeft: i === 0 ? "none" : "1px solid var(--muted)",
-          }}>{para}</p>
-        ))}
-      </div>
-
-      <div style={{ marginTop: "64px", padding: "28px", border: "1px solid var(--faint)", borderRadius: "4px" }}>
-        <p style={{ fontFamily: "var(--mono)", fontSize: "0.62rem", color: "var(--muted)", lineHeight: 1.8, marginBottom: "16px" }}>
-          $CFN · ConfessCoin
-        </p>
-        <CopyCA />
-        <div style={{ marginTop: "20px", display: "flex", gap: "20px" }}>
-          <a href={SOCIAL.x} target="_blank" rel="noopener noreferrer"
-            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
-            className="nav-link">X →</a>
-          <a href={SOCIAL.xCommunity} target="_blank" rel="noopener noreferrer"
-            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
-            className="nav-link">community →</a>
-          <a href={SOCIAL.github} target="_blank" rel="noopener noreferrer"
-            style={{ fontFamily: "var(--mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.08em" }}
-            className="nav-link">github →</a>
-        </div>
-      </div>
+    <div style={{
+      maxWidth: "740px",
+      margin: "0 auto",
+      padding: `calc(var(--nav-h) + var(--ca-h)) clamp(16px,4vw,40px) 0`,
+    }}>
+      {children}
     </div>
   );
 }
 
-// ─── FLOATING CONFESS BUTTON ──────────────────────────────────────────────────
-function ConfessButton({ onClick }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// FLOATING CONFESS BUTTON
+// ─────────────────────────────────────────────────────────────────────────────
+function FloatingConfessBtn({ onClick }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -900,108 +1397,68 @@ function ConfessButton({ onClick }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        position: "fixed", bottom: "36px", left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 200,
-        fontFamily: "var(--serif)", fontStyle: "italic",
-        fontSize: "1rem", letterSpacing: "0.18em",
+        position: "fixed",
+        bottom: "clamp(18px,4vw,32px)",
+        left: "50%", transform: "translateX(-50%)",
+        zIndex: 800,
+        fontFamily: "var(--serif-sc)", fontWeight: 400,
+        fontSize: "clamp(0.62rem,2vw,0.72rem)", letterSpacing: "0.24em",
         color: hovered ? "var(--bg)" : "var(--amber)",
-        background: hovered ? "var(--amber)" : "transparent",
+        background: hovered ? "var(--amber)" : "rgba(8,8,7,0.88)",
         border: "1px solid var(--amber)",
-        padding: "14px 44px",
-        borderRadius: "2px",
-        transition: "all 0.3s ease",
-        boxShadow: hovered ? "0 0 32px rgba(200,146,42,0.5)" : "0 0 16px rgba(200,146,42,0.15)",
-        backdropFilter: "blur(8px)",
+        padding: "clamp(12px,2.5vw,16px) clamp(28px,6vw,56px)",
+        borderRadius: "var(--radius)",
+        transition: "all 0.25s ease",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        whiteSpace: "nowrap",
+        animation: "burnPulse 5s ease infinite",
+        boxShadow: hovered
+          ? "0 0 48px rgba(200,146,42,0.5), 0 8px 32px rgba(0,0,0,0.6)"
+          : "0 0 24px rgba(200,146,42,0.12), 0 4px 20px rgba(0,0,0,0.5)",
       }}
-    >
-      CONFESS
-    </button>
+    >CONFESS</button>
   );
 }
 
-// ─── SOUND ────────────────────────────────────────────────────────────────────
-function useAmbientSound(enabled) {
-  const audioRef = useRef(null);
-  useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio("/thesound.mp3");
-      audioRef.current.loop = true;
-      audioRef.current.volume = 0.18;
-    }
-    if (enabled) {
-      audioRef.current.play().catch(() => {});
-    } else {
-      audioRef.current.pause();
-    }
-  }, [enabled]);
-}
-
-// ─── APP ROOT ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ROOT
+// ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("wall");
-  const [showConfess, setShowConfess] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
-  const [burnTarget, setBurnTarget] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [sound, setSound] = useState(false);
 
-  useAmbientSound(soundOn);
+  useAmbient(sound);
 
-  const handleBurnPrompt = (confessionId) => {
-    setBurnTarget(confessionId);
-    setShowConfess(true);
-  };
+  const openModal = useCallback(() => setShowModal(true), []);
+  const closeModal = useCallback(() => setShowModal(false), []);
+  const handleDone = useCallback(() => { setShowModal(false); setPage("wall"); }, []);
+  const handleBurnRequest = useCallback(() => { setShowModal(true); }, []);
 
-  const handleSubmitted = () => {
-    setShowConfess(false);
-    setPage("wall");
-  };
+  // Load Solana web3.js
+  useEffect(() => {
+    if (window.solanaWeb3) return;
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js";
+    document.head.appendChild(s);
+  }, []);
 
   return (
     <>
       <GlobalStyles />
+      <Nav page={page} setPage={setPage} sound={sound} setSound={setSound} onConfess={openModal} />
+      <CABar />
 
-      {/* Solana Web3 CDN */}
-      <script
-        src="https://cdnjs.cloudflare.com/ajax/libs/solana-web3.js/1.91.8/index.iife.min.js"
-        onLoad={() => { window.solanaWeb3 = window.solanaWeb3 || {}; }}
-      />
-
-      <Navbar
-        page={page}
-        setPage={setPage}
-        soundOn={soundOn}
-        toggleSound={() => setSoundOn(s => !s)}
-      />
-
-      {/* CA Bar */}
-      <div style={{
-        position: "fixed", top: "64px", left: 0, right: 0, zIndex: 90,
-        display: "flex", justifyContent: "center", padding: "6px",
-        background: "rgba(14,14,14,0.85)", borderBottom: "1px solid var(--faint)",
-        backdropFilter: "blur(6px)",
-      }}>
-        <CopyCA />
-      </div>
-
-      {/* Pages */}
-      <div style={{ paddingTop: "30px" }}>
-        {page === "wall"  && <WallPage onBurnPrompt={handleBurnPrompt} />}
+      <main>
+        {page === "wall"  && <WallPage onBurnRequest={handleBurnRequest} />}
         {page === "chain" && <ChainWallPage />}
         {page === "lore"  && <LorePage />}
-      </div>
+      </main>
 
-      {/* Confess button - only on wall */}
-      {page === "wall" && !showConfess && (
-        <ConfessButton onClick={() => setShowConfess(true)} />
-      )}
+      {page === "wall" && !showModal && <FloatingConfessBtn onClick={openModal} />}
 
-      {/* Modal */}
-      {showConfess && (
-        <ConfessModal
-          onClose={() => setShowConfess(false)}
-          onSubmitted={handleSubmitted}
-        />
-      )}
+      {showModal && <ConfessModal onClose={closeModal} onDone={handleDone} />}
     </>
   );
 }
